@@ -1,5 +1,6 @@
+import CurrencyPicker from "./CurrencyPicker";
 import { AREAS } from "../lib/areas";
-import { DECIMALS, PINNED_CURRENCIES, currencyName, formatAmount, isCurrencyCode, sumOf } from "../lib/money";
+import { DECIMALS, PINNED_CURRENCIES, formatAmount, isCurrencyCode, sumOf } from "../lib/money";
 import NumberField from "./NumberField";
 import { LoadingOverlay } from "./ProgressBar";
 
@@ -55,21 +56,13 @@ export default function BudgetControls({ plan, rates, dispatch }) {
           />
           {mode === "money" && (
             <div className="currency-select">
-              <select
-                aria-label="Currency"
+              <CurrencyPicker
                 value={currency}
+                pinned={pinned}
+                others={others}
                 disabled={!rates.data}
-                onChange={(e) => dispatch({ type: "currency", currency: e.target.value, rates: rates.data.rates })}
-              >
-                <optgroup label="Common">
-                  {pinned.map((c) => <option key={c} value={c}>{c} — {currencyName(c)}</option>)}
-                </optgroup>
-                {others.length > 0 && (
-                  <optgroup label="All currencies">
-                    {others.map((c) => <option key={c} value={c}>{c} — {currencyName(c)}</option>)}
-                  </optgroup>
-                )}
-              </select>
+                onChange={(code) => dispatch({ type: "currency", currency: code, rates: rates.data.rates })}
+              />
               {!rates.done && <LoadingOverlay done={rates.done} floor={rates.floor} label="Exchange rates" className="is-compact" />}
             </div>
           )}
