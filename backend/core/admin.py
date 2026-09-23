@@ -1,7 +1,6 @@
 from django.contrib import admin
 
-from .models import Location, Metric, WaitlistSignup
+from .models import BudgetPlan, ExchangeRates
 
-admin.site.register(WaitlistSignup)
-admin.site.register(Metric)
-admin.site.register(Location)
+admin.site.register(BudgetPlan)
+admin.site.register(ExchangeRates)

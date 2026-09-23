@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QBERS · HackAlem</title>
+    <title>Astana Budget Planner</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Font Awesome: "nest" puts each <svg> inside its <i> instead of replacing it,
+         so React can still change icons after the first render. -->
+    <script>window.FontAwesomeConfig = { autoReplaceSvg: "nest" };</script>
     <!-- Font Awesome kit URL comes from VITE_FONTAWESOME_KIT_URL in .env -->
     <script src="%VITE_FONTAWESOME_KIT_URL%" crossorigin="anonymous"></script>
   </head>

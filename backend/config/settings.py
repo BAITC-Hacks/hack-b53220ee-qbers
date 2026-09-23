@@ -101,6 +101,11 @@ GOOGLE_API_KEY = env("GOOGLE_API_KEY")
 GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
 
+# Currency conversion (currencyapi.com). Free plan = 300 calls/month, so rates are
+# cached in Postgres and refreshed at most every CURRENCY_CACHE_HOURS.
+CURRENCYAPI_KEY = env("CURRENCYAPI_KEY")
+CURRENCY_CACHE_HOURS = int(env("CURRENCY_CACHE_HOURS", "12"))
+
 # AWS — read here so future boto3 code has one place to pull from.
 AWS_CONSOLE_URL = env("AWS_CONSOLE_URL")
 AWS_CONSOLE_USERNAME = env("AWS_CONSOLE_USERNAME")

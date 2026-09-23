@@ -19,9 +19,26 @@
 
 <br/>
 
-**One command. Full stack. Same database on every machine.**
+**Astana Budget Planner — split a city budget across five areas, on a live map of Astana.**
+
+<sub>One command. Full stack. Same database on every machine.</sub>
 
 </div>
+
+---
+
+## 🏛️ `00` — THE APP
+
+A civil-planning budget tool for the city of Astana, in **white · lemonchiffon · dark turquoise**.
+
+| Part | What it does |
+|:--|:--|
+| **Overall budget** (top) | Enter the budget as **money** (default currency **₸ tenge**, any currency via live exchange rates) or as **units** (default **10,000**). |
+| **Split** | Divided **equally** across the five areas automatically — or switch to **Custom** and set each area yourself. Shows what's unallocated, or blocks saving if you go over. |
+| **Currency switch** | Converts the whole budget at today's rate (e.g. ₸1,000,000,000 → $2,235,086.10) and shows the tenge equivalent. |
+| **Five tabs** | 🚌 Transport · 🌳 Greenery · 🤝 Social services · 🛡️ Safety · 🏙️ City services — each with its own colour, the area's budget on the left and a **2GIS map of Astana** on the right. |
+| **Autosave** | Every change is validated by a Django form and saved to PostgreSQL (header shows *Saved 14:17*). Reload the page and it's all still there. |
+| **Preloaders** | Pastel bars with a live **%** — full-page on first load, inside each map while it loads, and while exchange rates or saves are in flight. |
 
 ---
 
@@ -193,16 +210,18 @@ flowchart LR
     subgraph Docker
       P[(🐘 PostgreSQL 18<br/>hackalem-db)]
     end
-    B -.->|Maps JS · Charts · GIS| G{{☁️ Google APIs}}
-    D -.->|verify ID token| G
+    B -.->|MapGL JS| M{{🗺️ 2GIS maps}}
+    D -.->|rates, cached 12 h| C{{💱 currencyapi.com}}
 ```
 
 | Layer | Tech | Job |
 |:--|:--|:--|
-| <samp>UI</samp> | **React 19 + Vite** | Landing page, components, Google widgets |
-| <samp>API</samp> | **Django** | Forms, auth, site actions (`/api/*`, `/admin`) |
-| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | Waitlist sign-ups, chart metrics, map pins, users |
-| <samp>CLOUD</samp> | **Google** | Maps, Charts, Sign-In with Google, Analytics |
+| <samp>UI</samp> | **React 19 + Vite** | Budget controls, area tabs, 2GIS maps, preloaders |
+| <samp>API</samp> | **Django** | `/api/plan/` (validated by `BudgetPlanForm`), `/api/currency/`, `/api/health/`, `/admin` |
+| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | The budget plan, cached exchange rates, users |
+| <samp>MAPS</samp> | **2GIS MapGL** | Map of Astana on every tab |
+| <samp>RATES</samp> | **currencyapi.com** | Live exchange rates (base KZT), proxied + cached by Django |
+| <samp>CLOUD</samp> | **Google** | Sign-In with Google and Analytics (ready, not on this page yet) |
 | <samp>CLOUD</samp> | **AWS** | Hosting / services (coming soon) |
 | <samp>STYLE</samp> | **Font Awesome · Rubik · EB Garamond** | Icons and typography |
 
@@ -278,12 +297,14 @@ hackalem/
 │   └── windows/           ·  docker-doctor.ps1 — virtualization checks + fixes
 ├── backend/               ⟶  Django project
 │   ├── config/            ·  settings.py reads everything from .env
-│   └── core/              ·  models, forms, API views, migrations
+│   └── core/              ·  BudgetPlan + ExchangeRates models, BudgetPlanForm, API views
 └── frontend/              ⟶  React (Vite)
     ├── index.html         ·  loads the Font Awesome kit from .env
     └── src/
-        ├── lib/env.js     ·  the only place the UI reads .env
-        └── components/    ·  MapCard · ChartCard · WaitlistForm · SignIn · StatusGrid
+        ├── App.jsx        ·  budget state, currency conversion, autosave, page preloader
+        ├── lib/           ·  env.js (reads .env) · areas.js (the five areas) · money.js
+        ├── hooks/         ·  useProgress — the % behind every preloader
+        └── components/    ·  BudgetControls · AreaTabs · DgisMap · ProgressBar · NumberField
 ```
 
 ---
@@ -298,7 +319,10 @@ Only variables prefixed **`VITE_`** reach the browser.
 | `POSTGRES_DB` · `POSTGRES_USER` · `POSTGRES_PASSWORD` | Docker + Django | Database name and login |
 | `POSTGRES_HOST` · `POSTGRES_PORT` | Docker + Django | Where Postgres listens (`127.0.0.1:55432`) |
 | `POSTGRES_VERSION` | Docker | Postgres major version (`18`); change it to upgrade |
-| `GOOGLE_API_KEY` | React | Google Maps + Charts |
+| `DGIS_API_KEY` → `VITE_DGIS_API_KEY` | React | 2GIS maps of Astana |
+| `CURRENCYAPI_KEY` | Django only | Exchange rates (free plan: 300 calls/month) |
+| `CURRENCY_CACHE_HOURS` | Django | How long saved rates are reused (`12`) — keeps us well inside the quota |
+| `GOOGLE_API_KEY` | — | Google Maps (not used by the current page — see troubleshooting) |
 | `GOOGLE_OAUTH_CLIENT_ID` | React + Django | "Sign in with Google" |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Django only | OAuth server-side flows |
 | `GA_MEASUREMENT_ID` | React | Google Analytics 4 (`G-XXXXXXX`, optional) |
@@ -316,16 +340,14 @@ Need a personal override without changing the team file? Put it in **`.env.local
 
 ## 🧪 `07` — VERIFY IT WORKS
 
-The landing page has live status tiles. All four should glow green:
-
-| Tile | Proves |
+| Check | What proves it |
 |:--|:--|
-| <i>React</i> | the frontend rendered |
-| <i>Django</i> | the API is reachable through the Vite proxy |
-| <i>PostgreSQL</i> | Django queried the Docker database (shows `PostgreSQL 18… (Debian…)`) |
-| <i>Google keys</i> | `.env` was loaded |
+| **Database connected** | Header pill: <i>PostgreSQL 18.6 connected</i> (hover for host/port). Red *Database offline* means Docker isn't running. |
+| **Saving works** | Change the budget → header shows *Saving…* then *Saved hh:mm*. Reload — your numbers are still there. |
+| **Exchange rates** | Pick USD — the total converts and *Rates from currencyapi.com · date* appears. |
+| **Maps** | Each tab shows its preloader %, then a 2GIS map of Astana. |
 
-Then scroll down: the **map** pins and **chart** bars come from Postgres tables, and the **waitlist form** saves a row through a Django form. View rows at **[`/admin`](http://localhost:5173/admin/)** after creating an admin user:
+Peek at the saved data at **[`/admin`](http://localhost:5173/admin/)** (Budget plans, Exchange rates) after creating an admin user:
 
 ```bash
 .venv/bin/python backend/manage.py createsuperuser
@@ -484,9 +506,21 @@ npm run db:reset
 </details>
 
 <details>
-<summary><b>Map shows "Sorry! Something went wrong" (<code>ApiNotActivatedMapError</code>)</b></summary>
+<summary><b>Map area stays blank or shows an error</b></summary>
 
-In Google Cloud Console (the project that owns `GOOGLE_API_KEY`) go to **APIs & Services → Library**, enable **Maps JavaScript API**, and make sure billing is on. If the key has referrer restrictions, allow `http://localhost:5173/*`. Reload the page. No restart needed.
+The maps come from **2GIS**. Check `VITE_DGIS_API_KEY` is in `.env`, you're online, and the key is active at [platform.2gis.com](https://platform.2gis.com/dashboard). After editing `.env`, restart `npm start`.
+</details>
+
+<details>
+<summary><b>"Could not load exchange rates" / only tenge available</b></summary>
+
+Money mode falls back to tenge. Check `CURRENCYAPI_KEY` in `.env` and your quota at [app.currencyapi.com](https://app.currencyapi.com/dashboard) (300 calls/month). Saved rates are reused for `CURRENCY_CACHE_HOURS`, so a short outage isn't noticed.
+</details>
+
+<details>
+<summary><b>Google Maps: <code>ApiNotActivatedMapError</code> (only if you add Google Maps back)</b></summary>
+
+The key in `.env` loads fine, but Google rejects it because the Maps APIs are **not enabled** on its Cloud project. In Google Cloud Console (the project that owns `GOOGLE_API_KEY`) → **APIs & Services → Library**, enable **Maps JavaScript API** (and Geocoding if needed), and make sure billing is on.
 </details>
 
 <details>

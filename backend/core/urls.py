@@ -5,9 +5,8 @@ from . import views
 urlpatterns = [
     path("health/", views.health),
     path("csrf/", views.csrf),
-    path("stats/", views.stats),
-    path("locations/", views.locations),
-    path("waitlist/", views.waitlist),
+    path("plan/", views.plan),
+    path("currency/", views.currency),
     path("auth/google/", views.google_login),
     path("auth/me/", views.me),
     path("auth/logout/", views.logout_view),

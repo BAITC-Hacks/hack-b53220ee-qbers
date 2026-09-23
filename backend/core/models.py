@@ -1,38 +1,36 @@
 from django.db import models
 
 
-class WaitlistSignup(models.Model):
-    """Rows created by the landing-page form — proves Django forms + Postgres work."""
+class BudgetPlan(models.Model):
+    """The city budget: an overall total split across the five areas.
 
-    name = models.CharField(max_length=120)
-    email = models.EmailField(unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    Money and units are kept side by side so switching modes never loses either.
+    Each section is {"total": "…", "split": "equal"|"custom", "allocations": {area: "…"}}.
+    """
+
+    MODES = [("money", "Money"), ("units", "Units")]
+
+    name = models.CharField(max_length=120, default="Astana city budget")
+    mode = models.CharField(max_length=10, choices=MODES, default="money")
+    currency = models.CharField(max_length=3, default="KZT")
+    money = models.JSONField()
+    units = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} <{self.email}>"
+        return f"{self.name} ({self.mode})"
 
 
-class Metric(models.Model):
-    """Demo time series rendered by Google Charts on the landing page."""
+class ExchangeRates(models.Model):
+    """Cached currencyapi.com response. The free plan allows 300 calls a month, so we reuse it."""
 
-    label = models.CharField(max_length=20)
-    users = models.PositiveIntegerField()
-    requests = models.PositiveIntegerField()
-    order = models.PositiveSmallIntegerField(default=0)
+    base = models.CharField(max_length=3, default="KZT")
+    rates = models.JSONField()  # {"USD": 0.00223, …} — units of that currency per 1 KZT
+    source_updated_at = models.DateTimeField(null=True)
+    fetched_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["order"]
+        get_latest_by = "fetched_at"
 
     def __str__(self):
-        return self.label
-
-
-class Location(models.Model):
-    """Pins dropped on the Google Map."""
-
-    name = models.CharField(max_length=120)
-    lat = models.FloatField()
-    lng = models.FloatField()
-
-    def __str__(self):
-        return self.name
+        return f"{self.base} rates @ {self.fetched_at:%Y-%m-%d %H:%M}"
