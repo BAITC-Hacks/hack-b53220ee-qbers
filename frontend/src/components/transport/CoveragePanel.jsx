@@ -3,25 +3,25 @@ import { LoadingOverlay } from "../ProgressBar";
 
 const pct = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
-function Meter({ label, icon, old, now, goal }) {
+export function Meter({ label, icon, old, now, goal, format = pct, max = 100 }) {
   const gain = now - old;
   return (
     <div className="meter">
       <span className="meter-label"><i className={icon} /> {label}</span>
       <div className="meter-values">
-        <span className="old" title="With today's stops">{pct(old)}</span>
+        <span className="old" title="Before">{format(old)}</span>
         <i className="fa-solid fa-arrow-right" />
-        <strong title="With your new stops">{pct(now)}</strong>
-        {gain > 0.05 && <span className="gain">+{gain.toFixed(1)} pts</span>}
+        <strong title="After your changes">{format(now)}</strong>
+        {gain > 0.05 && <span className="gain">+{max === 100 ? `${gain.toFixed(1)} pts` : format(gain)}</span>}
       </div>
       <div className="meter-bar" aria-hidden>
-        <div className="meter-old" style={{ width: `${old}%` }} />
-        <div className="meter-new" style={{ left: `${old}%`, width: `${Math.max(0, gain)}%` }} />
-        {goal != null && <div className="meter-goal" style={{ left: `${goal}%` }} title={`Goal ${goal}%`} />}
+        <div className="meter-old" style={{ width: `${Math.min(100, (old / max) * 100)}%` }} />
+        <div className="meter-new" style={{ left: `${Math.min(100, (old / max) * 100)}%`, width: `${Math.max(0, Math.min(100 - (old / max) * 100, (gain / max) * 100))}%` }} />
+        {goal != null && <div className="meter-goal" style={{ left: `${Math.min(100, (goal / max) * 100)}%` }} title={`Goal ${format(goal)}`} />}
       </div>
       {goal != null && (
         <small className={now >= goal ? "ok" : "warn"}>
-          {now >= goal ? <><i className="fa-solid fa-circle-check" /> Meets the {goal}% goal</> : <>{(goal - now).toFixed(1)} pts short of the {goal}% goal</>}
+          {now >= goal ? <><i className="fa-solid fa-circle-check" /> Meets the {format(goal)} goal</> : <>{max === 100 ? `${(goal - now).toFixed(1)} pts` : format(goal - now)} short of the {format(goal)} goal</>}
         </small>
       )}
     </div>

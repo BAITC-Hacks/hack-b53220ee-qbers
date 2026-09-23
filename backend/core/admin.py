@@ -1,10 +1,12 @@
 from django.contrib import admin
 
-from .models import BudgetPlan, BusRoute, BusStop, District, ExchangeRates, RailStation, TransportScenario
+from .models import (BudgetPlan, BusRoute, BusStop, District, ExchangeRates, GreenArea, GreeneryScenario, RailStation,
+                     Tree, TransportScenario)
 
 admin.site.register(BudgetPlan)
 admin.site.register(ExchangeRates)
 admin.site.register(TransportScenario)
+admin.site.register(GreeneryScenario)
 
 
 @admin.register(District)
@@ -30,3 +32,17 @@ class RailStationAdmin(admin.ModelAdmin):
 class BusRouteAdmin(admin.ModelAdmin):
     list_display = ("short_name", "long_name", "fleet", "peak_headway", "trip_minutes")
     exclude = ("shape",)
+
+
+@admin.register(GreenArea)
+class GreenAreaAdmin(admin.ModelAdmin):
+    list_display = ("name", "kind", "category", "area_m2", "district")
+    list_filter = ("category", "kind", "district")
+    search_fields = ("name",)
+    exclude = ("rings",)
+
+
+@admin.register(Tree)
+class TreeAdmin(admin.ModelAdmin):
+    list_display = ("species", "district", "lat", "lon")
+    list_filter = ("district",)

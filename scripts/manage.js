@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Runs a Django management command with the project's virtualenv on any OS:
-//   node scripts/manage.js import_transport
+//   node scripts/manage.js load_open_data
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");

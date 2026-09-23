@@ -16,7 +16,8 @@ from google.oauth2 import id_token
 
 from .budget import DEFAULT_MONEY_TOTAL, DEFAULT_UNITS_TOTAL, default_section
 from .forms import BudgetPlanForm
-from .models import BudgetPlan, ExchangeRates, TransportScenario
+from .greenery import GreeneryScenarioForm, default_scenario as default_greenery, reference_payload as greenery_payload
+from .models import BudgetPlan, ExchangeRates, GreeneryScenario, TransportScenario
 from .transport import TransportScenarioForm, default_scenario, reference_payload
 
 
@@ -159,7 +160,7 @@ def currency(request):
 def transport_data(request):
     payload = reference_payload()
     if not payload["districts"]:
-        return JsonResponse({"error": "No transport data yet — run: python backend/manage.py import_transport"}, status=503)
+        return JsonResponse({"error": "No map data yet — run: npm run data:load (or restart npm start, which loads it)"}, status=503)
     return JsonResponse(payload)
 
 
@@ -170,6 +171,32 @@ def transport_scenario(request):
         scenario = TransportScenario.objects.create(data=default_scenario())
     if request.method == "PUT":
         form = TransportScenarioForm(_json_body(request))
+        if not form.is_valid():
+            errors = [e for field in form.errors.values() for e in field]
+            return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)
+        scenario.data = form.cleaned_data
+        scenario.save()
+    return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# Greenery tab
+# ---------------------------------------------------------------------------
+@require_GET
+def greenery_data(request):
+    payload = greenery_payload()
+    if not payload["green_cells"]:
+        return JsonResponse({"error": "No greenery data yet — run: npm run data:load (or restart npm start)"}, status=503)
+    return JsonResponse(payload)
+
+
+@require_http_methods(["GET", "PUT"])
+def greenery_scenario(request):
+    scenario = GreeneryScenario.objects.order_by("-updated_at").first()
+    if scenario is None:
+        scenario = GreeneryScenario.objects.create(data=default_greenery())
+    if request.method == "PUT":
+        form = GreeneryScenarioForm(_json_body(request))
         if not form.is_valid():
             errors = [e for field in form.errors.values() for e in field]
             return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)

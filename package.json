@@ -11,7 +11,8 @@
     "db:snapshot": "node scripts/db.js snapshot",
     "db:reset": "node scripts/db.js reset",
     "db:shell": "node scripts/db.js shell",
-    "data:transport": "node scripts/manage.js import_transport"
+    "data:load": "node scripts/manage.js load_open_data --force",
+    "data:build": "node scripts/manage.js build_open_data"
   },
   "engines": {
     "node": ">=20"

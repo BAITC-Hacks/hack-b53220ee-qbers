@@ -37,7 +37,7 @@ class ExchangeRates(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# Transport tab — reference data (filled by `manage.py import_transport`)
+# Transport tab — reference data (filled by `manage.py load_open_data`)
 # ---------------------------------------------------------------------------
 class District(models.Model):
     """One of Astana's six districts: OSM boundary + qazatlas population + docx indicators."""
@@ -50,6 +50,7 @@ class District(models.Model):
     population_change = models.FloatField(null=True)     # % change over the year
     t1_congestion = models.PositiveSmallIntegerField(null=True)   # docx T1 (0–100)
     t2_accessibility = models.PositiveSmallIntegerField(null=True)  # docx T2 (0–100)
+    e1_green = models.PositiveSmallIntegerField(null=True)          # docx E1 (0–100; 100 = ≥20 m²/resident)
     color = models.CharField(max_length=7)
     area_km2 = models.FloatField()
     bbox = models.JSONField()      # [minLon, minLat, maxLon, maxLat]
@@ -124,6 +125,46 @@ class PopulationCell(models.Model):
 
 class TransportScenario(models.Model):
     """The user's transport-tab edits: costs, new buses per route, placed stops, walking distances."""
+
+    data = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+# ---------------------------------------------------------------------------
+# Greenery tab — reference data (filled by `manage.py load_open_data`)
+# ---------------------------------------------------------------------------
+class GreenCell(models.Model):
+    """≈200 m grid cell (same grid as PopulationCell) with the green area inside it."""
+
+    lat = models.FloatField()
+    lon = models.FloatField()
+    park_m2 = models.FloatField(default=0)    # parks, gardens, grass, meadows
+    forest_m2 = models.FloatField(default=0)  # forest, woodland, scrub (incl. the green belt)
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="green_cells")
+
+
+class GreenArea(models.Model):
+    """A park / wood / lawn outline for drawing on the map (simplified)."""
+
+    kind = models.CharField(max_length=30)
+    category = models.CharField(max_length=10)  # "park" or "forest"
+    name = models.CharField(max_length=120, blank=True)
+    area_m2 = models.FloatField()
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="green_areas")
+    rings = models.JSONField()
+
+
+class Tree(models.Model):
+    """An individually mapped tree (OpenStreetMap natural=tree)."""
+
+    lat = models.FloatField()
+    lon = models.FloatField()
+    species = models.CharField(max_length=80, blank=True)
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="trees")
+
+
+class GreeneryScenario(models.Model):
+    """The user's greenery-tab edits: tree costs, plantings, walking radius, goal."""
 
     data = models.JSONField()
     updated_at = models.DateTimeField(auto_now=True)

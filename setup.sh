@@ -351,6 +351,8 @@ else info "Django $DJANGO_NOW installed"; fi
 
 migrate() { $VENV_PY backend/manage.py migrate --noinput; }
 task 4 "Connecting Django to the database" "The database may not be ready yet — wait a few seconds and re-run ./setup.sh." migrate
+load_data() { $VENV_PY backend/manage.py load_open_data; }
+task 0 "Loading map, population & greenery data" "Run 'npm run data:load' to see the error, then re-run ./setup.sh." load_data
 
 # ============================================================================
 # 7. React frontend                                                  (12%)

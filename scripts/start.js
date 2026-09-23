@@ -71,6 +71,12 @@ async function main() {
   const migrate = spawnSync(PY, [MANAGE, "migrate", "--noinput"], { cwd: ROOT, encoding: "utf8", env: dbEnv });
   if (migrate.status !== 0) fail(`Database migration failed:\n${migrate.stderr || migrate.stdout}`);
 
+  // Fill the map/population/greenery tables from the committed open-data file if any are
+  // empty — e.g. a database created before a dataset was added. No-op otherwise.
+  const seed = spawnSync(PY, [MANAGE, "load_open_data"], { cwd: ROOT, encoding: "utf8", env: dbEnv });
+  if (seed.status !== 0) fail(`Loading the open data failed:\n${seed.stderr || seed.stdout}`);
+  if (/loaded open data/.test(seed.stdout)) console.log(`  ${green("✔")} ${seed.stdout.trim()}`);
+
   const port = await pickPort(8000, "Django");
   const webPort = await pickPort(5173, "the web app");
 

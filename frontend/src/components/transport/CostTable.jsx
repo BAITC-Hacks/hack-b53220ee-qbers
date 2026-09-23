@@ -20,7 +20,7 @@ export function costSummary(costs, counts) {
   return { setup, maintenanceYear };
 }
 
-function MeasureSelect({ value, onChange, currency, label }) {
+export function MeasureSelect({ value, onChange, currency, label }) {
   return (
     <select className="mini-select" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="money">{currency}</option>

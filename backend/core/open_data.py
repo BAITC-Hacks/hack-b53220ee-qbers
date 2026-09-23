@@ -1,17 +1,23 @@
-"""Builds the transport-tab data from open sources and stores it in Postgres.
+"""Builds the dashboard's reference data from open sources and stores it in Postgres.
 
 Sources (all open, credited on the page):
   * Bus routes, stops & timings — Mansurova et al. (2025), "From Raw GPS to GTFS: A
     Real-World Open Dataset for Bus Travel Time Prediction", Zenodo,
     doi:10.5281/zenodo.15769359 (CC BY 4.0). Routes 10, 12 and 46, Jul–Sep 2024.
-  * City-wide bus stops, rail/LRT stations, district boundaries and buildings —
+  * City-wide bus stops, rail/LRT stations, district boundaries, buildings, green
+    areas (parks, gardens, grass, forest) and mapped trees —
     © OpenStreetMap contributors (ODbL), via the Overpass API.
   * District population (1 July 2026) — qazatlas.kz/ru/city/astana.
-  * District transport indicators T1/T2 — District_Dataset_EN.docx.
+  * District indicators T1/T2 (transport) and E1 (green space) — District_Dataset_EN.docx.
 
-Run with:  python backend/manage.py import_transport   (downloads are cached in data/raw/)
+Two commands:
+  python backend/manage.py build_open_data   downloads (cached in data/raw/), rebuilds the
+                                              tables and writes core/fixtures/open_data.json.gz
+  python backend/manage.py load_open_data    loads that committed file — offline, seconds;
+                                              `npm start` runs it whenever the tables are empty
 """
 import csv
+import gzip
 import io
 import json
 import math
@@ -24,10 +30,12 @@ from pathlib import Path
 import requests
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
-from .models import BusRoute, BusStop, District, PopulationCell, RailStation
+from .models import BusRoute, BusStop, District, GreenArea, GreenCell, PopulationCell, RailStation, Tree
 
 RAW = Path(settings.REPO_ROOT) / "data" / "raw"
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "open_data.json.gz"
 GTFS_URL = "https://zenodo.org/api/records/15769359/files/gtfs_data.zip/content"
 OVERPASS = "https://overpass-api.de/api/interpreter"
 USER_AGENT = "hackalem-astana-budget-planner/1.0 (civic planning prototype)"
@@ -35,12 +43,12 @@ USER_AGENT = "hackalem-astana-budget-planner/1.0 (civic planning prototype)"
 # OSM relation id → display data. Population: qazatlas.kz (1 July 2026).
 # T1/T2: District_Dataset_EN.docx baseline (0–100, higher is better); Saraishyq is not in it.
 DISTRICTS = {
-    3486954: dict(name="Saryarqa", name_kk="Сарыарқа", population=349_923, share=20.8, yoy=-0.3, t1=50, t2=70, color="#B39DDB"),
-    3479876: dict(name="Yesil", name_kk="Есіл", population=333_348, share=19.8, yoy=9.2, t1=45, t2=62, color="#4FC3C6"),
-    20593940: dict(name="Nura", name_kk="Нұра", population=328_785, share=19.5, yoy=20.5, t1=55, t2=40, color="#81C784"),
-    3482819: dict(name="Almaty", name_kk="Алматы", population=256_353, share=15.2, yoy=-39.6, t1=40, t2=75, color="#F6B26B"),
-    8593081: dict(name="Baikonyr", name_kk="Байқоңыр", population=213_554, share=12.7, yoy=-4.0, t1=52, t2=68, color="#F48FB1"),
-    19733918: dict(name="Saraishyq", name_kk="Сарайшық", population=200_758, share=11.9, yoy=None, t1=None, t2=None, color="#E6C84F"),
+    3486954: dict(name="Saryarqa", name_kk="Сарыарқа", population=349_923, share=20.8, yoy=-0.3, t1=50, t2=70, e1=42, color="#B39DDB"),
+    3479876: dict(name="Yesil", name_kk="Есіл", population=333_348, share=19.8, yoy=9.2, t1=45, t2=62, e1=68, color="#4FC3C6"),
+    20593940: dict(name="Nura", name_kk="Нұра", population=328_785, share=19.5, yoy=20.5, t1=55, t2=40, e1=45, color="#81C784"),
+    3482819: dict(name="Almaty", name_kk="Алматы", population=256_353, share=15.2, yoy=-39.6, t1=40, t2=75, e1=50, color="#F6B26B"),
+    8593081: dict(name="Baikonyr", name_kk="Байқоңыр", population=213_554, share=12.7, yoy=-4.0, t1=52, t2=68, e1=55, color="#F48FB1"),
+    19733918: dict(name="Saraishyq", name_kk="Сарайшық", population=200_758, share=11.9, yoy=None, t1=None, t2=None, e1=None, color="#E6C84F"),
 }
 ROUTE_COLORS = {"10": "#E4572E", "12": "#3E7CB1", "46": "#8E44AD"}
 
@@ -54,6 +62,16 @@ NON_RESIDENTIAL = {
 }
 CELL_DEG_LAT = 0.0018  # ≈200 m
 CELL_DEG_LON = 0.0029  # ≈200 m at 51° N
+
+# Green space. "park" = everyday green (parks, gardens, lawns, meadows); "forest" =
+# woodland and scrub, which in Astana is mostly the planted green belt at the edge of town.
+GREEN_KINDS = {
+    "park": "park", "garden": "park", "nature_reserve": "forest", "recreation_ground": "park",
+    "grass": "park", "meadow": "park", "village_green": "park",
+    "forest": "forest", "wood": "forest", "scrub": "forest",
+}
+SAMPLE_DEG_LAT = 0.00036  # ≈40 m sample grid used to measure green area without double counting
+SAMPLE_DEG_LON = 0.00057
 
 
 # ---------------------------------------------------------------------------
@@ -375,17 +393,125 @@ def build_population(districts, log):
     return cells
 
 
+def _cell_key(lon, lat):
+    return (round(lon / CELL_DEG_LON), round(lat / CELL_DEG_LAT))
+
+
+def _scanline_samples(rings):
+    """Yield (ix, iy) sample-grid indices inside the rings (even-odd rule, so holes work)."""
+    ys = [p[1] for r in rings for p in r]
+    iy0, iy1 = math.floor(min(ys) / SAMPLE_DEG_LAT), math.ceil(max(ys) / SAMPLE_DEG_LAT)
+    edges = [(r[i], r[i + 1]) for r in rings for i in range(len(r) - 1)]
+    for iy in range(iy0, iy1 + 1):
+        y = (iy + 0.5) * SAMPLE_DEG_LAT
+        xs = sorted(x1 + (y - y1) * (x2 - x1) / (y2 - y1) for (x1, y1), (x2, y2) in edges if (y1 > y) != (y2 > y))
+        for a, b in zip(xs[::2], xs[1::2]):
+            for ix in range(math.ceil(a / SAMPLE_DEG_LON - 0.5), math.floor(b / SAMPLE_DEG_LON - 0.5) + 1):
+                yield ix, iy
+
+
+def build_green(districts, log):
+    elements = _overpass(
+        f"[out:json][timeout:250][maxsize:536870912][bbox:{_bbox_param(districts)}];"
+        '(way[leisure~"^(park|garden|nature_reserve)$"];relation[leisure~"^(park|garden|nature_reserve)$"];'
+        'way[landuse~"^(grass|forest|meadow|village_green|recreation_ground)$"];'
+        'relation[landuse~"^(grass|forest|meadow|village_green|recreation_ground)$"];'
+        'way[natural~"^(wood|scrub)$"];relation[natural~"^(wood|scrub)$"];);out tags geom;',
+        log, "osm_green.json",
+    )
+    sample_area = SAMPLE_DEG_LON * 111_320 * math.cos(math.radians(51.15)) * SAMPLE_DEG_LAT * 110_540
+    samples = {}      # (ix, iy) -> "park" | "forest"  (union: overlaps count once, parks win)
+    extra = defaultdict(lambda: {"park": 0.0, "forest": 0.0})  # tiny polygons that no sample hits
+    cell_district = {}
+    shapes = []
+
+    def district_for_cell(key, lon, lat):
+        if key not in cell_district:
+            d = district_of(key[0] * CELL_DEG_LON, key[1] * CELL_DEG_LAT, districts) or district_of(lon, lat, districts)
+            cell_district[key] = d["name"] if d else None
+        return cell_district[key]
+
+    for e in elements:
+        t = e.get("tags", {})
+        kind = next((t[k] for k in ("leisure", "landuse", "natural") if t.get(k) in GREEN_KINDS), None)
+        if not kind:
+            continue
+        if e["type"] == "way" and e.get("geometry"):
+            rings = [[[p["lon"], p["lat"]] for p in e["geometry"]]]
+        elif e.get("members"):
+            rings = _stitch_rings([[[p["lon"], p["lat"]] for p in m["geometry"]] for m in e["members"]
+                                   if m.get("role") in ("outer", "") and m.get("geometry")])
+        else:
+            continue
+        rings = [r for r in rings if len(r) >= 4 and r[0] == r[-1]]
+        if not rings:
+            continue
+        category = GREEN_KINDS[kind]
+        hit = False
+        for ix, iy in _scanline_samples(rings):
+            hit = True
+            if samples.get((ix, iy)) != "park":
+                samples[(ix, iy)] = category
+        area = sum(_ring_area_m2(r) for r in rings)
+        cx = sum(p[0] for p in rings[0]) / len(rings[0])
+        cy = sum(p[1] for p in rings[0]) / len(rings[0])
+        if not hit:
+            extra[_cell_key(cx, cy)][category] += area
+        d = district_of(cx, cy, districts)
+        if d and area >= 200:
+            shapes.append({"kind": kind, "category": category, "name": t.get("name:en") or t.get("name", ""),
+                           "area_m2": round(area), "district": d["name"],
+                           "rings": [_simplify(r, 0.00008) for r in rings]})
+
+    cells = defaultdict(lambda: {"park": 0.0, "forest": 0.0})
+    for (ix, iy), category in samples.items():
+        lon, lat = (ix + 0.5) * SAMPLE_DEG_LON, (iy + 0.5) * SAMPLE_DEG_LAT
+        cells[_cell_key(lon, lat)][category] += sample_area
+    for key, add in extra.items():
+        for c, a in add.items():
+            cells[key][c] += a
+    out = []
+    for key, v in cells.items():
+        name = district_for_cell(key, key[0] * CELL_DEG_LON, key[1] * CELL_DEG_LAT)
+        if name:
+            out.append({"lon": round(key[0] * CELL_DEG_LON, 5), "lat": round(key[1] * CELL_DEG_LAT, 5),
+                        "park": round(v["park"]), "forest": round(v["forest"]), "district": name})
+    total = defaultdict(float)
+    for c in out:
+        total[c["district"]] += c["park"] + c["forest"]
+    log(f"  {len(shapes):,} green areas → {len(out):,} green cells; " +
+        ", ".join(f"{k} {v / 1e6:.1f} km²" for k, v in sorted(total.items())))
+    return out, shapes
+
+
+def build_trees(districts, log):
+    elements = _overpass(
+        f"[out:json][timeout:150][bbox:{_bbox_param(districts)}];node[natural=tree];out body;", log, "osm_trees.json"
+    )
+    trees = []
+    for e in elements:
+        d = district_of(e["lon"], e["lat"], districts)
+        if d:
+            t = e.get("tags", {})
+            trees.append({"lon": e["lon"], "lat": e["lat"], "district": d["name"],
+                          "species": (t.get("species:en") or t.get("species") or t.get("genus") or "")[:80]})
+    log(f"  {len(trees):,} mapped trees")
+    return trees
+
+
 @transaction.atomic
-def save(districts, stops, stations, routes, cells):
-    for model in (PopulationCell, BusStop, RailStation, BusRoute, District):
+def save(districts, stops, stations, routes, cells, green_cells=(), green_areas=(), trees=(), route_colors=None):
+    for model in (Tree, GreenArea, GreenCell, PopulationCell, BusStop, RailStation, BusRoute, District):
         model.objects.all().delete()
     by_name = {}
     for d in districts:
         by_name[d["name"]] = District.objects.create(
             osm_id=d["osm_id"], name=d["name"], name_kk=d["name_kk"], population=d["population"],
             population_share=d["share"], population_change=d["yoy"], t1_congestion=d["t1"], t2_accessibility=d["t2"],
+            e1_green=d.get("e1"),
             color=d["color"], area_km2=d["area_km2"], bbox=d["bbox"],
-            outline=[_simplify(r) for r in d["outer"]], holes=[_simplify(r) for r in d["inner"]],
+            outline=d.get("outline") or [_simplify(r) for r in d["outer"]],
+            holes=d.get("holes") if "outline" in d else [_simplify(r) for r in d["inner"]],
         )
     BusStop.objects.bulk_create([
         BusStop(name=s["name"][:120], lat=s["lat"], lon=s["lon"], source=s["source"], district=by_name[s["district"]],
@@ -396,11 +522,89 @@ def save(districts, stops, stations, routes, cells):
                     district=by_name.get(s["district"])) for s in stations
     ])
     for r in routes:
-        BusRoute.objects.create(**{k: v for k, v in r.items() if k != "stop_ids"}, color=ROUTE_COLORS.get(r["short_name"], "#555"))
+        BusRoute.objects.create(**{k: v for k, v in r.items() if k != "stop_ids"},
+                                color=(route_colors or ROUTE_COLORS).get(r["short_name"], "#555"))
     PopulationCell.objects.bulk_create([
         PopulationCell(lat=c["lat"], lon=c["lon"], population=round(c["population"], 2), district=by_name[c["district"]])
         for c in cells
     ], batch_size=2000)
+    GreenCell.objects.bulk_create([
+        GreenCell(lat=c["lat"], lon=c["lon"], park_m2=c["park"], forest_m2=c["forest"], district=by_name[c["district"]])
+        for c in green_cells
+    ], batch_size=2000)
+    GreenArea.objects.bulk_create([
+        GreenArea(kind=g["kind"], category=g["category"], name=g["name"][:120], area_m2=g["area_m2"],
+                  district=by_name[g["district"]], rings=g["rings"])
+        for g in green_areas
+    ], batch_size=1000)
+    Tree.objects.bulk_create([
+        Tree(lat=t["lat"], lon=t["lon"], species=t["species"], district=by_name[t["district"]]) for t in trees
+    ], batch_size=2000)
+
+
+# ---------------------------------------------------------------------------
+# Committed fixture: build once (network), load anywhere (offline)
+# ---------------------------------------------------------------------------
+def export_fixture(log=print):
+    districts = list(District.objects.all())
+    name = {d.id: d.name for d in districts}
+    data = {
+        "version": timezone.now().isoformat(),
+        "districts": [
+            {"osm_id": d.osm_id, "name": d.name, "name_kk": d.name_kk, "population": d.population,
+             "share": d.population_share, "yoy": d.population_change, "t1": d.t1_congestion,
+             "t2": d.t2_accessibility, "e1": d.e1_green, "color": d.color, "area_km2": d.area_km2,
+             "bbox": d.bbox, "outline": d.outline, "holes": d.holes}
+            for d in districts
+        ],
+        "stops": [{"name": s.name, "lat": s.lat, "lon": s.lon, "source": s.source, "district": name[s.district_id],
+                   "routes": s.routes} for s in BusStop.objects.all()],
+        "stations": [{"name": s.name, "name_en": s.name_en, "kind": s.kind, "lat": s.lat, "lon": s.lon,
+                      "district": name.get(s.district_id)} for s in RailStation.objects.all()],
+        "routes": [{f.name: getattr(r, f.name) for f in BusRoute._meta.fields if f.name not in ("id", "color")}
+                   | {"stop_ids": [], "color": r.color} for r in BusRoute.objects.all()],
+        "cells": [{"lat": c.lat, "lon": c.lon, "population": c.population, "district": name[c.district_id]}
+                  for c in PopulationCell.objects.all()],
+        "green_cells": [{"lat": c.lat, "lon": c.lon, "park": c.park_m2, "forest": c.forest_m2,
+                         "district": name[c.district_id]} for c in GreenCell.objects.all()],
+        "green_areas": [{"kind": g.kind, "category": g.category, "name": g.name, "area_m2": g.area_m2,
+                         "district": name[g.district_id], "rings": g.rings} for g in GreenArea.objects.all()],
+        "trees": [{"lat": t.lat, "lon": t.lon, "species": t.species, "district": name[t.district_id]}
+                  for t in Tree.objects.all()],
+    }
+    FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(FIXTURE, "wt", encoding="utf-8") as f:
+        json.dump(data, f, separators=(",", ":"), ensure_ascii=False)
+    log(f"  wrote {FIXTURE.relative_to(settings.REPO_ROOT)} ({FIXTURE.stat().st_size / 1e6:.1f} MB)")
+
+
+def fixture_needed():
+    """True when any reference table is empty (e.g. a database created before a new dataset existed)."""
+    return any(not m.objects.exists() for m in (District, BusStop, RailStation, BusRoute, PopulationCell, GreenCell, Tree))
+
+
+def load_fixture(force=False, log=print):
+    if not force and not fixture_needed():
+        log("  open data already loaded")
+        return False
+    with gzip.open(FIXTURE, "rt", encoding="utf-8") as f:
+        data = json.load(f)
+    routes = [{k: v for k, v in r.items() if k != "color"} | {"stop_ids": set()} for r in data["routes"]]
+    colors = {r["short_name"]: r["color"] for r in data["routes"]}
+    save(
+        data["districts"],
+        [s | {"routes": set(s["routes"])} for s in data["stops"]],
+        data["stations"],
+        routes,
+        data["cells"],
+        data["green_cells"],
+        data["green_areas"],
+        data["trees"],
+        route_colors=colors,
+    )
+    log(f"  loaded open data built {data['version'][:10]}: {len(data['stops'])} stops, "
+        f"{len(data['green_areas'])} green areas, {len(data['trees'])} trees")
+    return True
 
 
 def run(log=print):
@@ -414,5 +618,10 @@ def run(log=print):
     stations = build_rail(districts, log)
     log("Population model (OpenStreetMap buildings × qazatlas.kz)")
     cells = build_population(districts, log)
-    save(districts, stops, stations, routes, cells)
+    log("Green space (OpenStreetMap parks, lawns, forest)")
+    green_cells, green_areas = build_green(districts, log)
+    log("Trees (OpenStreetMap)")
+    trees = build_trees(districts, log)
+    save(districts, stops, stations, routes, cells, green_cells, green_areas, trees)
     log("Saved to PostgreSQL.")
+    export_fixture(log)

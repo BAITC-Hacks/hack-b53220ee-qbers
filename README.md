@@ -52,6 +52,16 @@ A civil-planning budget tool for the city of Astana, in **white · lemonchiffon 
 | **Costs** | Pre-filled purchase/setup **and** maintenance costs for bus stops, stations, buses and trains. Maintenance in **currency or units**, **/month or /year**. Totals are checked against the transport budget. |
 | **Walking distance** | Set the max distance to a bus stop (default **500 m**, from the dataset's T2) and to a station (1,000 m) plus goals. Shows the **% of residents in reach — before → after** your new stops, city-wide and per district, and stops per 10,000 residents. |
 
+### 🌳 The Greenery tab
+
+| Feature | Details |
+|:--|:--|
+| **Map (styled after [trees.sg](https://www.trees.sg))** | Parks & lawns, forest, every mapped tree as a dot, and home blocks shaded **red → green by green m² per resident nearby**. Toggles for each layer + the same animated district zoom. |
+| **Green space today** | Park/lawn and forest area, mapped trees, and the **% of residents with ≥20 m² of green space within 500 m of home** (the district dataset's E1 target). |
+| **Plant trees** | **Drag the tree sign onto the map** (choose how many trees per drop), or **mass-plant** N trees in a district — they're placed automatically in the blocks with the least green per resident. Each tree adds **4 m²**. |
+| **Before → after** | Per district: green area, m² per resident, and share of residents meeting the goal near home — with a switch to include or exclude forest / the green belt. |
+| **Tree costs** | Tree (sapling) cost + planting/setup cost per new tree, and a maintenance fee (pruning, cutting…) × the **number of trees needing it (default 1,000)**, per month or year, in currency or units. Checked against the greenery budget. |
+
 <sub>Sources (also shown on the page): bus routes & timings — [Mansurova et al. 2025, Zenodo](https://doi.org/10.5281/zenodo.15769359) (CC BY 4.0); stops, stations, districts, buildings — © OpenStreetMap contributors (ODbL); population — [qazatlas.kz](https://qazatlas.kz/ru/city/astana) (1 July 2026); T1/T2 indicators — District_Dataset_EN.docx.</sub>
 
 ---
@@ -162,7 +172,8 @@ Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to stop the web servers. The database conta
 | **Start the app** | `npm start` | `pnpm start` | `./run.sh` | `npm start` |
 | **Stop the app** | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> |
 | **Start only the database** | `npm run db:up` | `pnpm run db:up` | ← same | ← same |
-| **Rebuild transport data** (maintainers) | `npm run data:transport` | `pnpm run data:transport` | ← same | ← same |
+| **Reload map/population/green data** | `npm run data:load` | `pnpm run data:load` | ← same | ← same |
+| **Rebuild it from the sources** (maintainers) | `npm run data:build` | `pnpm run data:build` | ← same | ← same |
 | **Share my data with the team** | `npm run db:snapshot` | `pnpm run db:snapshot` | ← same | ← same |
 | **Reload the team's data** (wipes mine) | `npm run db:reset` | `pnpm run db:reset` | ← same | ← same |
 | **Open a SQL prompt** | `npm run db:shell` | `pnpm run db:shell` | ← same | ← same |
@@ -232,8 +243,8 @@ flowchart LR
 | Layer | Tech | Job |
 |:--|:--|:--|
 | <samp>UI</samp> | **React 19 + Vite** | Budget controls, area tabs, 2GIS maps, preloaders |
-| <samp>API</samp> | **Django** | `/api/plan/`, `/api/transport/`, `/api/transport/scenario/` (validated by Django forms), `/api/currency/`, `/api/health/`, `/admin` |
-| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | Budget plan, transport scenario, districts, stops, stations, routes, population grid, cached rates |
+| <samp>API</samp> | **Django** | `/api/plan/`, `/api/transport/…`, `/api/greenery/…` (scenarios validated by Django forms), `/api/currency/`, `/api/health/`, `/admin` |
+| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | Budget plan, transport & greenery scenarios, districts, stops, stations, routes, population & green grids, parks, trees, cached rates |
 | <samp>MAPS</samp> | **2GIS MapGL** | Map of Astana on every tab |
 | <samp>RATES</samp> | **currencyapi.com** | Live exchange rates (base KZT), proxied + cached by Django |
 | <samp>CLOUD</samp> | **Google** | Sign-In with Google and Analytics (ready, not on this page yet) |
@@ -263,7 +274,8 @@ Connect with any SQL tool (TablePlus, DBeaver, pgAdmin, DataGrip) using those va
 2. Changed data you want everyone to have? Run **`npm run db:snapshot`**, commit `db/init/01-snapshot.sql`, and push.
 3. Teammates pull, then run **`npm run db:reset`** to replace their local data with the new snapshot.
 4. Schema changes still go through Django: `python backend/manage.py makemigrations` → commit → teammates' `npm start` runs `migrate` automatically.
-5. The **transport data** (districts, stops, stations, routes, population grid) is already in the snapshot — nobody needs to download anything. To rebuild it from the sources (e.g. newer OpenStreetMap data), run `npm run data:transport`, then `npm run db:snapshot` and commit.
+5. The **reference data** (districts, bus stops, stations, routes, population grid, green areas, trees) lives in the committed file `backend/core/fixtures/open_data.json.gz`. `npm start` and setup load it automatically **whenever those tables are empty** — so a database created before a dataset existed fills itself in. Force a reload with `npm run data:load`.
+6. To rebuild the reference data from the sources (e.g. newer OpenStreetMap data), run `npm run data:build` — it downloads (cached in `data/raw/`), refreshes Postgres and rewrites the fixture. Commit the fixture.
 
 ### 🔌 When a port is already taken
 
@@ -316,7 +328,9 @@ hackalem/
 │   ├── config/            ·  settings.py reads everything from .env
 │   └── core/              ·  models, forms, API views
 │       ├── transport.py   ·  transport scenario form, default costs, API payload
-│       └── transport_data.py · builds districts/stops/routes/population from open data
+│       ├── greenery.py    ·  greenery scenario form, tree costs, API payload
+│       ├── open_data.py   ·  builds districts, stops, routes, population, green space, trees
+│       └── fixtures/      ·  open_data.json.gz — committed reference data (loaded automatically)
 └── frontend/              ⟶  React (Vite)
     ├── index.html         ·  loads the Font Awesome kit from .env
     └── src/
@@ -324,8 +338,10 @@ hackalem/
         ├── lib/           ·  env.js (reads .env) · areas.js (the five areas) · money.js
         ├── hooks/         ·  useProgress — the % behind every preloader
         ├── lib/geo.js     ·  distances, point-in-district, walking-coverage maths
+        ├── lib/green.js   ·  green m² per resident near home, tree placement
         └── components/    ·  BudgetControls · AreaTabs · DgisMap · ProgressBar · NumberField
-            └── transport/ ·  TransportTab · TransportMap · Coverage · Costs · Fleet · RegionCard
+            ├── transport/ ·  TransportTab · TransportMap · Coverage · Costs · Fleet · RegionCard
+            └── greenery/  ·  GreeneryTab · GreeneryMap
 ```
 
 ---
@@ -523,6 +539,16 @@ The snapshot only loads into an **empty** volume. To throw away your local data 
 
 ```bash
 npm run db:reset
+```
+</details>
+
+<details>
+<summary><b>"No transport data yet" / "No greenery data yet"</b></summary>
+
+Your database was created before that dataset existed. Pull the latest code and restart `npm start` — it loads the missing data automatically. Or run it directly:
+
+```bash
+npm run data:load
 ```
 </details>
 

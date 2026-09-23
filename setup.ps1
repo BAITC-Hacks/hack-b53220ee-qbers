@@ -297,6 +297,7 @@ if ($djangoBefore -and $djangoBefore -eq $djangoNow) { Congrats "Django $djangoN
 elseif ($djangoBefore) { Info "Django updated $djangoBefore -> $djangoNow" }
 else { Info "Django $djangoNow installed" }
 Task 4 "Connecting Django to the database" "The database may not be ready yet - wait a few seconds and run setup.cmd again." $VenvPy @("backend\manage.py", "migrate", "--noinput")
+Task 0 "Loading map, population & greenery data" "Run 'npm run data:load' to see the error, then run setup.cmd again." $VenvPy @("backend\manage.py", "load_open_data")
 
 # ============================================================================
 # 7. React frontend                                                   (12%)
