@@ -1,3 +1,4 @@
+import qbersLogo from "./assets/qbers-logo.png";
 import { useEffect, useReducer, useRef, useState } from "react";
 import AreaTabs from "./components/AreaTabs";
 import BudgetControls from "./components/BudgetControls";
@@ -171,7 +172,7 @@ export default function App() {
 
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark"><i className="fa-solid fa-sun" /></span>
+          <img className="brand-mark" src={qbersLogo} alt="QBERS" width="56" height="56" />
           <div>
             <strong>Astana Budget Planner</strong>
             <span>Астана қаласының бюджетін жоспарлау</span>

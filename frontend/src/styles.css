@@ -111,15 +111,13 @@ code { font-size: 0.9em; }
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--lemon);
-  color: #b8860b;
-  font-size: 1.2rem;
+  display: block;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
 }
+
 .brand strong { display: block; font-family: var(--font-serif); font-size: 1.45rem; font-weight: 600; line-height: 1.1; }
 .brand span { font-size: 0.8rem; opacity: 0.8; }
 .topbar-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
