@@ -1,9 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ASTANA } from "../../lib/areas";
 import { env } from "../../lib/env";
+import { createDraggableMarker } from "../../lib/dragMarker";
 import { boundsOf, districtIndexAt, polygonsOf } from "../../lib/geo";
 import { cellSquare, needColor } from "../../lib/green";
 import { loadScript } from "../../lib/loadScript";
+import { useMapDrop } from "../dnd/DndProvider";
 import { LoadingOverlay } from "../ProgressBar";
 
 const MAPGL_URL = "https://mapgl.2gis.com/api/js/v1";
@@ -24,17 +26,33 @@ const onlySrc = (name) => ["match", ["sourceAttr", "src"], [name], true, false];
  * trees as small dots, and home blocks shaded by green m² per resident nearby.
  */
 const GreeneryMap = forwardRef(function GreeneryMap(
-  { data, analysis, goal, treePoints, showRegions, showGreen, showNeed, showTrees, selected, onDrop },
+  { data, analysis, goal, treePoints, drops = [], dropIcon, showRegions, showGreen, showNeed, showTrees, selected, onDrop, onMoveDrop },
   ref
 ) {
   const el = useRef(null);
   const map = useRef(null);
   const needSource = useRef(null);
-  const layers = useRef({ regions: [], added: [], existing: [] });
+  const layers = useRef({ regions: [], added: [], existing: [], handles: [] });
+  const onMoveRef = useRef(onMoveDrop);
+  onMoveRef.current = onMoveDrop;
   const [stage, setStage] = useState({ floor: 0, done: false });
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
   const [dropHint, setDropHint] = useState(null);
+  const drop = useMapDrop("greenery-map", {
+    accept: (kind) => kind === "tree",
+    onDrop: (item, x, y) => {
+      if (!map.current) return;
+      const rect = el.current.getBoundingClientRect();
+      const [lon, lat] = map.current.unproject([x - rect.left, y - rect.top]);
+      if (districtIndexAt(lon, lat, data.districts) < 0) {
+        setDropHint("Drop trees inside Astana's city limits.");
+        setTimeout(() => setDropHint(null), 2500);
+        return;
+      }
+      onDrop(lon, lat);
+    },
+  });
 
   useImperativeHandle(ref, () => ({
     flyTo(lon, lat, zoom = 15) {
@@ -93,7 +111,7 @@ const GreeneryMap = forwardRef(function GreeneryMap(
       cancelled = true;
       clearTimeout(fallback);
       Object.values(layers.current).flat().forEach((l) => l?.destroy?.());
-      layers.current = { regions: [], added: [], existing: [] };
+      layers.current = { regions: [], added: [], existing: [], handles: [] };
       map.current?.destroy();
       map.current = null;
     };
@@ -161,6 +179,19 @@ const GreeneryMap = forwardRef(function GreeneryMap(
     };
   }, [ready, treePoints]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---- a draggable handle on each dropped group of trees (drag to move the whole group) ----
+  useEffect(() => {
+    if (!ready) return;
+    layers.current.handles.forEach((m) => m.destroy());
+    layers.current.handles = drops.map(({ index, lon, lat, count }) =>
+      createDraggableMarker(map.current, {
+        coordinates: [lon, lat], icon: dropIcon, size: 30, zIndex: 40,
+        title: `${count} trees — drag to move`,
+        onMoveEnd: ([x, y]) => onMoveRef.current?.(index, x, y),
+      })
+    );
+  }, [ready, drops, dropIcon]);
+
   // ---- district outlines ----
   useEffect(() => {
     if (!ready) return;
@@ -190,35 +221,10 @@ const GreeneryMap = forwardRef(function GreeneryMap(
     return () => clearTimeout(t);
   }, [ready, selected, data]);
 
-  function handleDrop(e) {
-    e.preventDefault();
-    setDropHint(null);
-    if (!e.dataTransfer.getData("application/x-tree") || !map.current) return;
-    const rect = el.current.getBoundingClientRect();
-    const [lon, lat] = map.current.unproject([e.clientX - rect.left, e.clientY - rect.top]);
-    if (districtIndexAt(lon, lat, data.districts) < 0) {
-      setDropHint("Drop trees inside Astana's city limits.");
-      setTimeout(() => setDropHint(null), 2500);
-      return;
-    }
-    onDrop(lon, lat);
-  }
-
   return (
-    <div
-      className="map-frame transport-map"
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("application/x-tree")) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "copy";
-          setDropHint("Release to plant here");
-        }
-      }}
-      onDragLeave={() => setDropHint(null)}
-      onDrop={handleDrop}
-    >
+    <div ref={drop.setNodeRef} className={`map-frame transport-map ${drop.accepting ? "is-drop-target" : ""} ${drop.isOver ? "is-over" : ""}`}>
       <div ref={el} className="map" aria-label="Map of Astana's green space and trees" />
-      {dropHint && <div className="drop-hint">{dropHint}</div>}
+      {(dropHint || drop.isOver) && <div className="drop-hint">{dropHint || "Release to plant here"}</div>}
       {error ? (
         <div className="map-error"><i className="fa-solid fa-triangle-exclamation" /> {error}</div>
       ) : (

@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { districtIndexAt } from "../../lib/geo";
 import { expandPlantings, greenAnalysis } from "../../lib/green";
 import { formatAmount, fromKzt, kztPerUnit, rateOf, toKzt } from "../../lib/money";
+import { PaletteItem } from "../dnd/DndProvider";
 import NumberField from "../NumberField";
 import { LoadingOverlay, ProgressBar } from "../ProgressBar";
 import { MeasureSelect } from "../transport/CostTable";
@@ -27,6 +28,8 @@ function reducer(s, a) {
       return next({ costs: { ...s.costs, ...a.patch } });
     case "add":
       return next({ plantings: [...s.plantings, a.planting] });
+    case "moveDrop":
+      return next({ plantings: s.plantings.map((p, i) => (i === a.index ? { ...p, lon: +a.lon.toFixed(6), lat: +a.lat.toFixed(6) } : p)) });
     case "remove":
       return next({ plantings: s.plantings.filter((_, i) => i !== a.index) });
     case "clear":
@@ -109,6 +112,12 @@ export default function GreeneryTab({ plan, rates }) {
   const onDrop = useCallback(
     (lon, lat) => dispatch({ type: "add", planting: { kind: "drop", lon: +lon.toFixed(6), lat: +lat.toFixed(6), count: scenario?.trees_per_drop || 50 } }),
     [scenario?.trees_per_drop]
+  );
+
+  const onMoveDrop = useCallback((index, lon, lat) => dispatch({ type: "moveDrop", index, lon, lat }), []);
+  const dropHandles = useMemo(
+    () => (scenario?.plantings || []).map((p, index) => ({ ...p, index })).filter((p) => p.kind === "drop"),
+    [scenario?.plantings]
   );
 
   const stats = useMemo(() => {
@@ -204,21 +213,7 @@ export default function GreeneryTab({ plan, rates }) {
         <section className="t-card">
           <h4><i className="fa-solid fa-hand-pointer" /> Plant trees — drag onto the map</h4>
           <div className="palette single">
-            <div
-              className="palette-sign"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("application/x-tree", "1");
-                e.dataTransfer.effectAllowed = "copy";
-                const img = new Image();
-                img.src = TREE_SIGN;
-                e.dataTransfer.setDragImage(img, 20, 20);
-              }}
-            >
-              <img src={TREE_SIGN} alt="" width="40" height="40" />
-              <span>Trees</span>
-              <i className="fa-solid fa-grip-vertical" />
-            </div>
+            <PaletteItem id="palette-tree" kind="tree" label="Trees" icon={TREE_SIGN} hint="Drag onto the map to plant a group of trees" />
             <div className="field">
               <span>Trees per drop</span>
               <NumberField value={scenario.trees_per_drop} decimals={0} ariaLabel="Trees per drop"
@@ -308,6 +303,9 @@ export default function GreeneryTab({ plan, rates }) {
             showTrees={layers.trees}
             selected={selected}
             onDrop={onDrop}
+            drops={dropHandles}
+            dropIcon={TREE_SIGN}
+            onMoveDrop={onMoveDrop}
           />
           {selected != null && r && (
             <div className="region-card" style={{ "--region": data.districts[selected].color }} aria-live="polite">

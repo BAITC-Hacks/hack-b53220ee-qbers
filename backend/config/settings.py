@@ -107,6 +107,9 @@ GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
 CURRENCYAPI_KEY = env("CURRENCYAPI_KEY")
 CURRENCY_CACHE_HOURS = int(env("CURRENCY_CACHE_HOURS", "12"))
 
+# 2GIS catalog API — used only by `manage.py build_open_data` to download stations.
+DGIS_API_KEY = env("DGIS_API_KEY")
+
 # AWS — read here so future boto3 code has one place to pull from.
 AWS_CONSOLE_URL = env("AWS_CONSOLE_URL")
 AWS_CONSOLE_USERNAME = env("AWS_CONSOLE_USERNAME")

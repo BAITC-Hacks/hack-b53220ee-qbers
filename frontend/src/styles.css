@@ -672,3 +672,96 @@ code { font-size: 0.9em; }
 .greenery .meter-old { background: #43A047; }
 .greenery .meter-values strong { color: #2E7D32; }
 .cost-table th small { display: block; color: var(--muted); }
+
+/* =====================================================================
+   Safety tab + shared district tabs
+   ===================================================================== */
+.count-grid.three { grid-template-columns: repeat(2, 1fr); }
+.count-box > img { flex: 0 0 auto; }
+.palette.three { grid-template-columns: repeat(3, 1fr); }
+.palette.three .palette-sign { flex-direction: column; text-align: center; font-size: 0.78rem; padding: 8px 4px; }
+.palette.three .palette-sign i { display: none; }
+.palette-sign { width: 100%; font: inherit; color: inherit; touch-action: none; }
+.palette-sign.is-dragging { opacity: 0.4; }
+.plain-label { display: flex; flex-direction: column; font-size: 0.85rem; }
+.plain-label small { color: var(--muted); font-size: 0.75rem; }
+.notice { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; font-size: 0.8rem; border: 1.5px solid; }
+.notice.warn { color: #7a4f00; background: #fff6d6; border-color: #e7c35a; }
+.notice i { margin-top: 2px; }
+.no-data { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.no-data li { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border: 1.5px solid var(--border); background: #fbfdfd; }
+.no-data li > i { color: var(--muted); text-align: center; }
+.no-data strong { display: block; font-size: 0.85rem; }
+.no-data small { color: var(--muted); font-size: 0.74rem; line-height: 1.25; display: block; }
+.badge { padding: 2px 8px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; color: #8a3b1e; background: #ffe7dd; border: 1px solid #f0b39a; }
+.reference { margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--border); background: #fbfdfd; font-size: 0.82rem; }
+.reference ul { list-style: none; margin: 6px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 16px; }
+.reference li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding: 2px 0; }
+.reference li span { color: var(--muted); }
+.reference small { display: block; color: var(--muted); font-size: 0.74rem; line-height: 1.4; }
+.reference a { color: var(--turq-ink); }
+.inline-inputs { display: grid; grid-template-columns: repeat(3, 70px); gap: 4px; }
+.inline-inputs .number-field input, .vehicle-grid .number-field input { padding: 5px 6px; text-align: right; }
+.vehicle-grid td { min-width: 70px; }
+.district-table td.crit, .region-card dd.crit { color: var(--bad); font-weight: 600; }
+.district-table tr.is-selected { background: var(--lemon); }
+.region-tab .district-table tbody tr { cursor: pointer; }
+.region-profile { margin: 0 0 6px; font-size: 0.8rem; color: var(--ink); font-style: italic; }
+.switch.small { font-size: 0.8rem; gap: 5px; }
+.switch.small img { vertical-align: -3px; }
+.map-layer-loader { inset: auto 12px 52px auto !important; width: 260px; height: auto; background: rgba(255, 255, 255, 0.95) !important; }
+.region-tab { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.t-card.flat { padding: 10px 12px; }
+.legend-btn { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; color: inherit; }
+.legend-btn:hover { text-decoration: underline; }
+
+/* drag & drop (dnd-kit) */
+.drag-ghost {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px;
+  background: #fff; border: 2px solid var(--turq-ink); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-weight: 600; font-size: 0.85rem; cursor: grabbing; pointer-events: none;
+}
+.transport-map.is-drop-target { outline: 3px dashed var(--turq); outline-offset: -3px; }
+.transport-map.is-over { outline: 3px solid var(--turq-ink); }
+.drag-marker { cursor: grab; touch-action: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.drag-marker.is-dragging { cursor: grabbing; transform: scale(1.15); }
+.drag-marker img { display: block; pointer-events: none; }
+
+/* =====================================================================
+   Social services (schools & kindergartens)
+   ===================================================================== */
+.edu-i { font-size: 1.3rem; color: #00838F; width: 30px; text-align: center; margin-top: 4px; }
+.readiness { display: inline-block; padding: 1px 7px; font-weight: 700; font-size: 0.82rem; font-variant-numeric: tabular-nums; border: 1.5px solid; }
+.readiness.under { color: var(--bad); background: #fdecea; border-color: #f2b8b1; }
+.readiness.over { color: var(--ok); background: #e6f6ec; border-color: #a9dcbc; }
+.readiness.ok { color: var(--turq-ink); background: var(--turq-soft); border-color: var(--border); }
+.fit { display: flex; flex-direction: column; gap: 8px; }
+.fit-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; padding: 8px 10px; border: 1.5px solid var(--border); background: #fbfdfd; font-size: 0.82rem; }
+.fit-row strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.fit-row > span:nth-child(3) { color: var(--muted); }
+.fit-row small { grid-column: 1 / -1; font-size: 0.74rem; line-height: 1.3; }
+.fit-row.under small { color: var(--bad); }
+.fit-row.over small { color: var(--ok); }
+.inline-inputs.two { grid-template-columns: repeat(2, 70px); }
+.district-table.projection tbody th small { color: var(--muted); font-weight: 400; }
+.cost-table td.src { font-size: 0.74rem; color: var(--muted); max-width: 260px; }
+.cost-table td.src a { color: var(--turq-ink); }
+.cost-table .number-field { min-width: 90px; }
+.notice:not(.warn) { color: var(--ink); background: var(--turq-soft); border-color: var(--border); }
+
+/* =====================================================================
+   Sharp, angular internal boxes — only the outer containers
+   (overall budget, tabs, tab panel, header pills) stay rounded.
+   ===================================================================== */
+.allocation, .t-card, .count-box, .meter, .map-frame, .map-toolbar, .route, .route-badge, .number-field,
+.segmented, .segmented button, .currency-select select, .area-budget, .area-icon, .palette-sign, .new-stops li,
+.region-card, .map-legend, .drop-hint, .map-popup, .btn-small, .stepper, .mini-select, .region-picker select,
+.region-picker button, .mass-plant select, .icon-btn, .progress-track, .progress-fill, .share-bar, .share-bar div,
+.meter-bar, .coverage-body .loading-overlay, .loading-overlay.is-compact, .banner, .transport-loading, .swatch,
+.line, .switch span, .switch span::after, .no-data li, .badge, .reference, .notice, .drag-ghost, .readiness, .fit-row, .cost-input > *,
+.autofill .number-field, .field .number-field, .total-input .number-field {
+  border-radius: 0 !important;
+}
+.count-box { min-width: 0; }
+.count-box strong { font-size: clamp(0.95rem, 1.35vw, 1.4rem); white-space: nowrap; }
+.count-box small { overflow-wrap: anywhere; }

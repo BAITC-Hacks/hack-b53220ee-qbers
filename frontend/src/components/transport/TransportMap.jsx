@@ -1,9 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ASTANA } from "../../lib/areas";
 import { env } from "../../lib/env";
+import { createDraggableMarker } from "../../lib/dragMarker";
 import { boundsOf, districtIndexAt, polygonsOf } from "../../lib/geo";
 import { loadScript } from "../../lib/loadScript";
 import { SIGNS } from "../../lib/signs";
+import { useMapDrop } from "../dnd/DndProvider";
 import { LoadingOverlay } from "../ProgressBar";
 
 const MAPGL_URL = "https://mapgl.2gis.com/api/js/v1";
@@ -20,7 +22,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
  * user's new ones. Drop a sign from the sidebar onto the map to place a new stop.
  */
 const TransportMap = forwardRef(function TransportMap(
-  { data, newStops, showRegions, showRoutes, showStops, selected, onDrop },
+  { data, newStops, showRegions, showRoutes, showStops, selected, onDrop, onMove },
   ref
 ) {
   const el = useRef(null);
@@ -32,6 +34,22 @@ const TransportMap = forwardRef(function TransportMap(
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
   const [dropHint, setDropHint] = useState(null);
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
+  const drop = useMapDrop("transport-map", {
+    accept: (kind) => kind === "bus" || kind === "rail",
+    onDrop: (item, x, y) => {
+      if (!map.current) return;
+      const rect = el.current.getBoundingClientRect();
+      const [lon, lat] = map.current.unproject([x - rect.left, y - rect.top]);
+      if (districtIndexAt(lon, lat, data.districts) < 0) {
+        setDropHint("Drop it inside Astana's city limits.");
+        setTimeout(() => setDropHint(null), 2500);
+        return;
+      }
+      onDrop(item.kind, lon, lat);
+    },
+  });
 
   useImperativeHandle(ref, () => ({
     flyTo(lon, lat, zoom = 15) {
@@ -185,15 +203,17 @@ const TransportMap = forwardRef(function TransportMap(
   useEffect(() => {
     if (!ready) return;
     layers.current.news.forEach((mk) => mk.destroy());
-    layers.current.news = newStops.map((s, i) => {
-      const mk = new window.mapgl.Marker(map.current, {
-        coordinates: [s.lon, s.lat], icon: s.kind === "rail" ? SIGNS.newRail : SIGNS.newBus, size: [34, 34], anchor: [17, 17], zIndex: 30,
-      });
-      mk.on("click", () =>
-        popup([s.lon, s.lat], `<strong>New ${s.kind === "rail" ? "train station" : "bus stop"} #${i + 1}</strong><span>Remove it from the list in the sidebar.</span>`)
-      );
-      return mk;
-    });
+    // New stops are draggable: grab one on the map to move it.
+    layers.current.news = newStops.map((s, i) =>
+      createDraggableMarker(map.current, {
+        coordinates: [s.lon, s.lat],
+        icon: s.kind === "rail" ? SIGNS.newRail : SIGNS.newBus,
+        title: `New ${s.kind === "rail" ? "train station" : "bus stop"} #${i + 1} — drag to move`,
+        onMoveEnd: ([lon, lat]) => onMoveRef.current?.(i, lon, lat),
+        onClick: () =>
+          popup([s.lon, s.lat], `<strong>New ${s.kind === "rail" ? "train station" : "bus stop"} #${i + 1}</strong><span>Drag it to move · remove it in the sidebar.</span>`),
+      })
+    );
   }, [ready, newStops]);
 
   // ---- animated region zoom: pull back to the city, then glide into the region ----
@@ -206,37 +226,10 @@ const TransportMap = forwardRef(function TransportMap(
     return () => clearTimeout(t);
   }, [ready, selected, data]);
 
-  // ---- drag & drop from the sidebar palette ----
-  function handleDrop(e) {
-    e.preventDefault();
-    setDropHint(null);
-    const kind = e.dataTransfer.getData("application/x-stop-kind");
-    if (!kind || !map.current) return;
-    const rect = el.current.getBoundingClientRect();
-    const [lon, lat] = map.current.unproject([e.clientX - rect.left, e.clientY - rect.top]);
-    if (districtIndexAt(lon, lat, data.districts) < 0) {
-      setDropHint("Drop it inside Astana's city limits.");
-      setTimeout(() => setDropHint(null), 2500);
-      return;
-    }
-    onDrop(kind, lon, lat);
-  }
-
   return (
-    <div
-      className="map-frame transport-map"
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("application/x-stop-kind")) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "copy";
-          setDropHint("Release to place it here");
-        }
-      }}
-      onDragLeave={() => setDropHint(null)}
-      onDrop={handleDrop}
-    >
+    <div ref={drop.setNodeRef} className={`map-frame transport-map ${drop.accepting ? "is-drop-target" : ""} ${drop.isOver ? "is-over" : ""}`}>
       <div ref={el} className="map" aria-label="Map of Astana with bus stops, stations and districts" />
-      {dropHint && <div className="drop-hint">{dropHint}</div>}
+      {(dropHint || drop.isOver) && <div className="drop-hint">{dropHint || "Release to place it here"}</div>}
       {error ? (
         <div className="map-error"><i className="fa-solid fa-triangle-exclamation" /> {error}</div>
       ) : (

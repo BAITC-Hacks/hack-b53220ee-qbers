@@ -51,6 +51,16 @@ class District(models.Model):
     t1_congestion = models.PositiveSmallIntegerField(null=True)   # docx T1 (0–100)
     t2_accessibility = models.PositiveSmallIntegerField(null=True)  # docx T2 (0–100)
     e1_green = models.PositiveSmallIntegerField(null=True)          # docx E1 (0–100; 100 = ≥20 m²/resident)
+    # Remaining District_Dataset_EN.docx baselines (0–100, higher is better; Saraishyq not covered)
+    e2_air = models.PositiveSmallIntegerField(null=True)
+    s1_schools = models.PositiveSmallIntegerField(null=True)
+    s2_clinics = models.PositiveSmallIntegerField(null=True)
+    b1_street_safety = models.PositiveSmallIntegerField(null=True)  # 100 = lighting and cameras everywhere
+    b2_road_safety = models.PositiveSmallIntegerField(null=True)    # 100 = minimal injury accidents
+    c1_utilities = models.PositiveSmallIntegerField(null=True)
+    c2_requests = models.PositiveSmallIntegerField(null=True)
+    profile = models.CharField(max_length=200, blank=True)          # docx district profile
+    births_2024 = models.PositiveIntegerField(null=True)            # qazatlas.kz (Bureau of National Statistics)
     color = models.CharField(max_length=7)
     area_km2 = models.FloatField()
     bbox = models.JSONField()      # [minLon, minLat, maxLon, maxLat]
@@ -165,6 +175,89 @@ class Tree(models.Model):
 
 class GreeneryScenario(models.Model):
     """The user's greenery-tab edits: tree costs, plantings, walking radius, goal."""
+
+    data = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+
+# ---------------------------------------------------------------------------
+# Safety tab — reference data
+# ---------------------------------------------------------------------------
+class SafetyPlace(models.Model):
+    KINDS = [
+        ("fire_station", "Fire station"), ("police_station", "Police department"), ("police_post", "Local police post"),
+        ("lamp", "Street lamp"), ("speed_camera", "Speed camera"), ("cctv", "CCTV camera"),
+    ]
+    SOURCES = [("2gis", "2GIS directory"), ("osm", "OpenStreetMap")]
+    kind = models.CharField(max_length=20, choices=KINDS)
+    name = models.CharField(max_length=200, blank=True)
+    address = models.CharField(max_length=200, blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    source = models.CharField(max_length=10, choices=SOURCES)
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="safety_places")
+
+    def __str__(self):
+        return self.name or self.get_kind_display()
+
+
+class ReferenceFigure(models.Model):
+    """A published statistic shown on the dashboard, with its source and how recent it is."""
+
+    key = models.CharField(max_length=60, unique=True)
+    label = models.CharField(max_length=200)
+    value = models.FloatField()
+    unit = models.CharField(max_length=60, blank=True)
+    data_year = models.CharField(max_length=20, blank=True)   # the year the figure describes
+    published = models.CharField(max_length=40, blank=True)   # when the source published it
+    source = models.CharField(max_length=200)
+    url = models.URLField(max_length=400, blank=True)
+    retrieved = models.DateField(null=True)
+
+    def __str__(self):
+        return self.label
+
+
+class SafetyScenario(models.Model):
+    """The user's safety-tab edits: new lamps/CCTV/speed cameras, vehicles per district, costs."""
+
+    data = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+
+# ---------------------------------------------------------------------------
+# Social services tab — schools & kindergartens
+# ---------------------------------------------------------------------------
+class EducationPlace(models.Model):
+    KINDS = [("school", "School"), ("kindergarten", "Kindergarten")]
+    kind = models.CharField(max_length=15, choices=KINDS)
+    subtype = models.CharField(max_length=40, blank=True)  # e.g. gymnasium, lyceum, state / private kindergarten
+    public = models.BooleanField(default=True)
+    name = models.CharField(max_length=200, blank=True)
+    address = models.CharField(max_length=200, blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="education_places")
+
+    def __str__(self):
+        return self.name
+
+
+class BirthYear(models.Model):
+    """Births registered in Astana (Bureau of National Statistics via qazatlas.kz)."""
+
+    year = models.PositiveSmallIntegerField(unique=True)
+    births = models.PositiveIntegerField()
+    estimated = models.BooleanField(default=False)  # e.g. a year summed from monthly figures
+
+    class Meta:
+        ordering = ["year"]
+
+
+class EducationScenario(models.Model):
+    """The user's social-services edits: new schools/kindergartens, staff, pay, costs, projection settings."""
 
     data = models.JSONField()
     updated_at = models.DateTimeField(auto_now=True)

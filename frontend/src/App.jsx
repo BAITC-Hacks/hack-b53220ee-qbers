@@ -2,6 +2,7 @@ import qbersLogo from "./assets/qbers-logo.png";
 import { useEffect, useReducer, useRef, useState } from "react";
 import AreaTabs from "./components/AreaTabs";
 import BudgetControls from "./components/BudgetControls";
+import { DndProvider } from "./components/dnd/DndProvider";
 import { LoadingOverlay, ProgressBar } from "./components/ProgressBar";
 import { useProgress } from "./hooks/useProgress";
 import { api } from "./lib/api";
@@ -191,10 +192,10 @@ export default function App() {
           </div>
         )}
         {plan && (
-          <>
+          <DndProvider>
             <BudgetControls plan={plan} rates={rates} dispatch={dispatch} />
             <AreaTabs plan={plan} rates={rates} active={active} onSelect={setActive} dispatch={dispatch} />
-          </>
+          </DndProvider>
         )}
       </main>
 

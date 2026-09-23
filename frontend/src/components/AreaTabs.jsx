@@ -1,9 +1,11 @@
 import { useRef } from "react";
 import { AREAS } from "../lib/areas";
 import { DECIMALS, formatAmount } from "../lib/money";
-import DgisMap from "./DgisMap";
+import RegionTab from "./districts/RegionTab";
 import NumberField from "./NumberField";
+import EducationTab from "./education/EducationTab";
 import GreeneryTab from "./greenery/GreeneryTab";
+import SafetyTab from "./safety/SafetyTab";
 import TransportTab from "./transport/TransportTab";
 
 export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
@@ -52,7 +54,7 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
       </div>
 
       <div
-        className={`tab-panel ${area.id === "transport" || area.id === "greenery" ? "is-transport" : ""}`}
+        className={`tab-panel ${["transport", "greenery", "safety", "social"].includes(area.id) ? "is-transport" : ""}`}
         role="tabpanel"
         id={`panel-${area.id}`}
         aria-labelledby={`tab-${area.id}`}
@@ -62,6 +64,10 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
           <TransportTab plan={plan} rates={rates.data?.rates} />
         ) : area.id === "greenery" ? (
           <GreeneryTab plan={plan} rates={rates.data?.rates} />
+        ) : area.id === "safety" ? (
+          <SafetyTab plan={plan} rates={rates.data?.rates} />
+        ) : area.id === "social" ? (
+          <EducationTab plan={plan} rates={rates.data?.rates} />
         ) : (
         <>
         <aside className="area-budget">
@@ -92,7 +98,7 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
         </aside>
 
         {/* key: a new map (and preloader) every time this tab is opened */}
-        <DgisMap key={area.id} label={area.label} />
+        <RegionTab key={area.id} title={area.label.toLowerCase()} indicators={["c1", "c2"]} />
         </>
         )}
       </div>

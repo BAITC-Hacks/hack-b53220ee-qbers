@@ -17,7 +17,9 @@ from google.oauth2 import id_token
 from .budget import DEFAULT_MONEY_TOTAL, DEFAULT_UNITS_TOTAL, default_section
 from .forms import BudgetPlanForm
 from .greenery import GreeneryScenarioForm, default_scenario as default_greenery, reference_payload as greenery_payload
-from .models import BudgetPlan, ExchangeRates, GreeneryScenario, TransportScenario
+from .education import EducationScenarioForm, default_scenario as default_education, reference_payload as education_payload
+from .models import BudgetPlan, District, EducationScenario, ExchangeRates, GreeneryScenario, SafetyScenario, TransportScenario
+from .safety import SafetyScenarioForm, default_scenario as default_safety, district_payload, reference_payload as safety_payload, references
 from .transport import TransportScenarioForm, default_scenario, reference_payload
 
 
@@ -197,6 +199,66 @@ def greenery_scenario(request):
         scenario = GreeneryScenario.objects.create(data=default_greenery())
     if request.method == "PUT":
         form = GreeneryScenarioForm(_json_body(request))
+        if not form.is_valid():
+            errors = [e for field in form.errors.values() for e in field]
+            return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)
+        scenario.data = form.cleaned_data
+        scenario.save()
+    return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# Safety tab + shared district data (Social / City services tabs)
+# ---------------------------------------------------------------------------
+@require_GET
+def districts_data(request):
+    districts = list(District.objects.all())
+    if not districts:
+        return JsonResponse({"error": "No map data yet — run: npm run data:load (or restart npm start)"}, status=503)
+    return JsonResponse({"districts": district_payload(districts), "references": references()})
+
+
+@require_GET
+def safety_data(request):
+    payload = safety_payload()
+    if not payload["places"]:
+        return JsonResponse({"error": "No safety data yet — run: npm run data:load (or restart npm start)"}, status=503)
+    return JsonResponse(payload)
+
+
+@require_http_methods(["GET", "PUT"])
+def safety_scenario(request):
+    scenario = SafetyScenario.objects.order_by("-updated_at").first()
+    if scenario is None:
+        scenario = SafetyScenario.objects.create(data=default_safety())
+    if request.method == "PUT":
+        form = SafetyScenarioForm(_json_body(request))
+        if not form.is_valid():
+            errors = [e for field in form.errors.values() for e in field]
+            return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)
+        scenario.data = form.cleaned_data
+        scenario.save()
+    return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# Social services tab — schools & kindergartens
+# ---------------------------------------------------------------------------
+@require_GET
+def education_data(request):
+    payload = education_payload()
+    if not payload["places"]:
+        return JsonResponse({"error": "No schools data yet — run: npm run data:load (or restart npm start)"}, status=503)
+    return JsonResponse(payload)
+
+
+@require_http_methods(["GET", "PUT"])
+def education_scenario(request):
+    scenario = EducationScenario.objects.order_by("-updated_at").first()
+    if scenario is None:
+        scenario = EducationScenario.objects.create(data=default_education())
+    if request.method == "PUT":
+        form = EducationScenarioForm(_json_body(request))
         if not form.is_valid():
             errors = [e for field in form.errors.values() for e in field]
             return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)

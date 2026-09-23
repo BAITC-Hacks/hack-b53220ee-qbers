@@ -24,6 +24,8 @@ function scenarioReducer(s, a) {
       return next({ new_trains: Math.max(0, Math.min(500, Math.round(a.value) || 0)) });
     case "addStop":
       return next({ new_stops: [...s.new_stops, { kind: a.kind, lon: +a.lon.toFixed(6), lat: +a.lat.toFixed(6) }] });
+    case "moveStop":
+      return next({ new_stops: s.new_stops.map((x, i) => (i === a.index ? { ...x, lon: +a.lon.toFixed(6), lat: +a.lat.toFixed(6) } : x)) });
     case "removeStop":
       return next({ new_stops: s.new_stops.filter((_, i) => i !== a.index) });
     case "clearStops":
@@ -119,6 +121,7 @@ export default function TransportTab({ plan, rates }) {
   }, [runCalc]);
 
   const onDrop = useCallback((kind, lon, lat) => dispatch({ type: "addStop", kind, lon, lat }), []);
+  const onMove = useCallback((index, lon, lat) => dispatch({ type: "moveStop", index, lon, lat }), []);
 
   const pageDone = Object.keys(loaded).length === 2;
   if (!pageDone || !data || !scenario) {
@@ -234,6 +237,7 @@ export default function TransportTab({ plan, rates }) {
             showStops={showStops}
             selected={selected}
             onDrop={onDrop}
+            onMove={onMove}
           />
           {selected != null && (
             <RegionCard

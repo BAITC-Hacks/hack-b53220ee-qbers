@@ -1,5 +1,6 @@
 import { districtIndexAt } from "../../lib/geo";
 import { SIGNS } from "../../lib/signs";
+import { PaletteItem } from "../dnd/DndProvider";
 import NumberField from "../NumberField";
 
 function CountBox({ icon, label, value, added, detail }) {
@@ -12,27 +13,6 @@ function CountBox({ icon, label, value, added, detail }) {
         {added > 0 && <span className="count-added">+{added} new</span>}
         {detail && <small>{detail}</small>}
       </div>
-    </div>
-  );
-}
-
-function PaletteSign({ kind, label, icon }) {
-  return (
-    <div
-      className="palette-sign"
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("application/x-stop-kind", kind);
-        e.dataTransfer.effectAllowed = "copy";
-        const img = new Image();
-        img.src = icon;
-        e.dataTransfer.setDragImage(img, 20, 20);
-      }}
-      title={`Drag onto the map to add a ${label.toLowerCase()}`}
-    >
-      <img src={icon} alt="" width="40" height="40" />
-      <span>{label}</span>
-      <i className="fa-solid fa-grip-vertical" />
     </div>
   );
 }
@@ -75,9 +55,10 @@ export default function InfrastructurePanel({ existing, override, counts, newSto
       </div>
 
       <h4><i className="fa-solid fa-hand-pointer" /> Add stops — drag onto the map</h4>
+      <small className="muted">Drag a sign onto the map. Placed signs can be dragged again to move them.</small>
       <div className="palette">
-        <PaletteSign kind="bus" label="Bus stop" icon={SIGNS.newBus} />
-        <PaletteSign kind="rail" label="Train station" icon={SIGNS.newRail} />
+        <PaletteItem id="palette-bus" kind="bus" label="Bus stop" icon={SIGNS.newBus} />
+        <PaletteItem id="palette-rail" kind="rail" label="Train station" icon={SIGNS.newRail} />
       </div>
 
       {newStops.length > 0 && (
