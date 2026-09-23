@@ -289,3 +289,16 @@ class CityServiceScenario(models.Model):
 
     data = models.JSONField()
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class TranslationCache(models.Model):
+    """Cached Google Cloud Translation API v2 results, so repeated page loads and
+    teammates don't re-bill the same strings."""
+
+    target = models.CharField(max_length=8)
+    text_hash = models.CharField(max_length=64)
+    source_text = models.TextField()
+    translated_text = models.TextField()
+
+    class Meta:
+        unique_together = ("target", "text_hash")

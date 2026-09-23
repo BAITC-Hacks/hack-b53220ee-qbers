@@ -9,6 +9,8 @@ import anselSecondPhoto from "../assets/team/ansel2.jpg";
 import groupPhoto from "../assets/team/group_photo.jpg";
 import "./ContactPage.css";
 
+const SCORE_DECK_URL = "https://claude.ai/artifact/7XJyGAk7Kgh82dAKhzNnRu";
+
 const MEMBERS = [
   { id: "damir", photo: damirPhoto, secondPhoto: damirSecondPhoto, email: "isakovdamirforwca@gmail.com", telegram: "dgsq1" },
   { id: "sabyrzhan", photo: sabyrzhanPhoto, secondPhoto: sabyrzhanSecondPhoto, email: "kanatov.s.07@mail.ru", telegram: "Xd3Ys" },
@@ -99,6 +101,11 @@ function MemberCard({ member, copy }) {
 export default function ContactPage({ copy }) {
   return (
     <main className="contact-page" lang="en">
+      <a className="contact-score-deck-link" href={SCORE_DECK_URL} target="_blank" rel="noopener noreferrer">
+        <ContactIcon type="pin" />
+        How the /100 district score is calculated — slide deck
+        <ContactIcon type="arrow" />
+      </a>
       <section className="contact-hero" aria-labelledby="contact-heading">
         <div className="contact-hero-copy">
           <p className="contact-eyebrow"><span className="contact-dot" />{copy.eyebrow}</p>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "../../hooks/useProgress";
 import { api } from "../../lib/api";
+import TabScoreStrip from "../score/TabScoreStrip";
 import { createDraggableMarker } from "../../lib/dragMarker";
 import { districtIndexAt } from "../../lib/geo";
 import { formatAmount, fromKzt, kztPerUnit, rateOf, toKzt } from "../../lib/money";
@@ -494,6 +495,8 @@ export default function SafetyTab({ plan, rates }) {
             </table>
           </div>
         </section>
+
+        <TabScoreStrip indicators={["b1", "b2"]} />
 
         <footer className="sources">
           <strong>Sources</strong>

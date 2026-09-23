@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (BudgetPlan, BusRoute, BusStop, District, ExchangeRates, GreenArea, GreeneryScenario, RailStation,
                      ReferenceFigure, SafetyPlace, SafetyScenario, Tree, TransportScenario, EducationPlace, EducationScenario, BirthYear,
-                     CityServiceStat, CityServiceScenario)
+                     CityServiceStat, CityServiceScenario, TranslationCache)
 
 admin.site.register(BudgetPlan)
 admin.site.register(ExchangeRates)
@@ -76,3 +76,10 @@ class EducationPlaceAdmin(admin.ModelAdmin):
 class CityServiceStatAdmin(admin.ModelAdmin):
     list_display = ("year", "utility", "category_name", "count")
     list_filter = ("utility",)
+
+
+@admin.register(TranslationCache)
+class TranslationCacheAdmin(admin.ModelAdmin):
+    list_display = ("target", "source_text", "translated_text")
+    list_filter = ("target",)
+    search_fields = ("source_text", "translated_text")

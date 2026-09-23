@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api } from "../../lib/api";
+import TabScoreStrip from "../score/TabScoreStrip";
 import { districtIndexAt, proximity } from "../../lib/geo";
 import { fromKzt, formatAmount, kztPerUnit, rateOf } from "../../lib/money";
 import { useProgress } from "../../hooks/useProgress";
@@ -275,6 +276,8 @@ export default function TransportTab({ plan, rates }) {
         />
 
         <CostTable costs={scenario.costs} counts={counts} plan={plan} rates={rates} dispatch={dispatch} summary={summary} />
+
+        <TabScoreStrip indicators={["t1", "t2"]} />
 
         <footer className="sources">
           <strong>Sources</strong>

@@ -340,6 +340,8 @@ code { font-size: 0.9em; }
 
 .footer { padding: 20px 16px 28px; text-align: center; font-size: 0.82rem; color: var(--muted); }
 .footer i { color: var(--turq-ink); }
+.footer-score-link { color: var(--turq-ink); font-weight: 600; text-decoration: underline; }
+.footer-score-link:hover { color: var(--turq-deep, #053335); }
 
 /* ---------- small screens ---------- */
 @media (max-width: 900px) {
@@ -795,3 +797,34 @@ code { font-size: 0.9em; }
 .bar-val { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
 .bar { width: 70%; min-height: 2px; }
 .bar-label { font-size: 0.7rem; color: var(--muted); }
+
+/* Language switcher */
+.lang-switcher { display: flex; align-items: center; gap: 6px; }
+.lang-select { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); font-size: 0.82rem; }
+.lang-select select { border: 0; background: transparent; cursor: pointer; }
+.lang-error { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; color: #6b1a00; background: #fff2ea; padding: 4px 8px; border: 1px solid #f0b89a; cursor: help; }
+
+/* AI allocate button (top panel) */
+.ai-allocate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--border);
+  background: linear-gradient(135deg, #10a37f14, #10a37f0a);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+.ai-allocate-btn:hover { border-color: #10a37f; }
+.ai-allocate-btn .fa-openai { color: #10a37f; font-size: 1.05rem; }
+.ai-allocate-btn:disabled { opacity: 0.6; cursor: progress; }
+.ai-allocate-result { flex-basis: 100%; margin-top: 6px; padding: 8px 12px; border: 1.5px solid var(--border); background: #fbfdfd; font-size: 0.82rem; }
+
+/* Per-tab /100 score strip */
+.tab-score-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 16px; border: 1.5px solid var(--border); background: var(--turq-soft); margin-top: 4px; }
+.tab-score-strip .strip-title { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.tab-score-item { display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: var(--muted); }
+.tab-score-item strong { font-size: 1.05rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tab-score-item strong.up { color: var(--ok); }

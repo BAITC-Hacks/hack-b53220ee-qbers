@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "../../hooks/useProgress";
 import { api } from "../../lib/api";
+import TabScoreStrip from "../score/TabScoreStrip";
 import { createDraggableMarker } from "../../lib/dragMarker";
 import { HORIZONS, KINDERGARTEN_AGES, REF_YEAR, SCHOOL_AGES, birthsFn, calibrateUplift, childrenIn, readiness, readinessLabel } from "../../lib/education";
 import { districtIndexAt } from "../../lib/geo";
@@ -541,6 +542,8 @@ export default function EducationTab({ plan, rates }) {
             </table>
           </div>
         </section>
+
+        <TabScoreStrip indicators={["s1", "s2"]} />
 
         <footer className="sources">
           <strong>Sources</strong>

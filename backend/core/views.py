@@ -22,6 +22,7 @@ from .education import EducationScenarioForm, default_scenario as default_educat
 from .models import (BudgetPlan, CityServiceScenario, District, EducationScenario, ExchangeRates, GreeneryScenario,
                      SafetyScenario, TransportScenario)
 from . import ai as ai_module
+from . import translate as translate_module
 from . import docxscore
 from .greenery import default_scenario as default_greenery
 from .safety import default_scenario as default_safety
@@ -413,6 +414,21 @@ def ai_report(request):
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = 'attachment; filename="astana-budget-ai-report.pdf"'
     return response
+
+
+@require_POST
+def translate_view(request):
+    body = _json_body(request)
+    texts = body.get("texts")
+    target = body.get("target")
+    if not isinstance(texts, list) or not texts or len(texts) > 500:
+        return JsonResponse({"error": "'texts' must be a list of 1-500 strings."}, status=400)
+    if not all(isinstance(t, str) and len(t) <= 4000 for t in texts):
+        return JsonResponse({"error": "Each text must be a string of at most 4000 characters."}, status=400)
+    translations, error = translate_module.translate_batch(texts, target)
+    if error:
+        return JsonResponse({"error": error}, status=502)
+    return JsonResponse({"translations": translations})
 
 
 @require_POST

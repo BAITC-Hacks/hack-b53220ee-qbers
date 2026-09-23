@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "../../hooks/useProgress";
 import { api } from "../../lib/api";
+import TabScoreStrip from "../score/TabScoreStrip";
 import { districtIndexAt } from "../../lib/geo";
 import { formatAmount, fromKzt, kztPerUnit, rateOf, toKzt } from "../../lib/money";
 import { UTIL_COLORS, UTIL_NEW_SIGNS } from "../../lib/signs";
@@ -286,6 +287,8 @@ export default function CityServicesTab({ plan, rates }) {
             </table>
           </div>
         </section>
+
+        <TabScoreStrip indicators={["c1", "c2"]} />
 
         <footer className="sources">
           <strong>Sources</strong>

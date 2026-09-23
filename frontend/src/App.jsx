@@ -3,6 +3,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import AreaTabs from "./components/AreaTabs";
 import BudgetControls from "./components/BudgetControls";
 import ContactPage from "./components/ContactPage";
+import LanguageSwitcher from "./components/LanguageSwitcher";
 import { CONTACT_COPY as copy } from "./lib/contactCopy";
 import { DndProvider } from "./components/dnd/DndProvider";
 import { LoadingOverlay, ProgressBar } from "./components/ProgressBar";
@@ -143,8 +144,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.lang = "en";
-    document.title = isContact ? `${copy.title} · QBERS` : "Astana Budget Planner";
+    document.title = isContact ? `${copy.title} · QBERS` : "Astana Innovation HackAlem App- Team QBERS ";
   }, [isContact]);
 
   // The shared navbar displays database health on both pages.
@@ -201,7 +201,7 @@ export default function App() {
         <a className="brand brand-link" href="#/">
           <img className="brand-mark" src={qbersLogo} alt="QBERS" width="56" height="56" />
           <div>
-            <strong>Astana Budget Planner</strong>
+            <strong>Astana Innovation HackAlem App- Team QBERS </strong>
             <span lang="kk">Астана қаласының бюджетін жоспарлау</span>
           </div>
         </a>
@@ -212,6 +212,7 @@ export default function App() {
           </nav>
           {plan && <SaveStatus save={save} />}
           <DbStatus health={health} />
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -231,7 +232,10 @@ export default function App() {
       </main>}
 
       <footer className="footer">
-        <i className="fa-solid fa-map-location-dot" /> Maps © 2GIS · Exchange rates: currencyapi.com · Team QBERS
+        <i className="fa-solid fa-map-location-dot" /> Maps © 2GIS · Exchange rates: currencyapi.com · Team QBERS ·{" "}
+        <a href="https://claude.ai/artifact/7XJyGAk7Kgh82dAKhzNnRu" target="_blank" rel="noopener noreferrer" className="footer-score-link">
+          How the /100 score is calculated
+        </a>
       </footer>
     </>
   );

@@ -21,6 +21,7 @@ urlpatterns = [
     path("score/", views.score_data),
     path("ai/allocate/", views.ai_allocate),
     path("ai/report/", views.ai_report),
+    path("translate/", views.translate_view),
     path("auth/google/", views.google_login),
     path("auth/me/", views.me),
     path("auth/logout/", views.logout_view),

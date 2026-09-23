@@ -1,8 +1,49 @@
+import { useState } from "react";
 import CurrencyPicker from "./CurrencyPicker";
 import { AREAS } from "../lib/areas";
-import { DECIMALS, PINNED_CURRENCIES, formatAmount, isCurrencyCode, sumOf } from "../lib/money";
+import { api } from "../lib/api";
+import { DECIMALS, PINNED_CURRENCIES, formatAmount, isCurrencyCode, sectionFromApi, sumOf } from "../lib/money";
 import NumberField from "./NumberField";
 import { LoadingOverlay } from "./ProgressBar";
+
+function AiAllocateButton({ dispatch }) {
+  const [state, setState] = useState({ status: "idle" });
+
+  async function run() {
+    setState({ status: "running" });
+    try {
+      const res = await api("ai/allocate/", { method: "POST", body: {} });
+      dispatch({ type: "load", plan: { mode: res.plan.mode, currency: res.plan.currency, money: sectionFromApi(res.plan.money), units: sectionFromApi(res.plan.units) } });
+      setState({ status: "done", rationale: res.rationale, split: res.split });
+    } catch (e) {
+      setState({ status: "error", message: e.data?.error || e.message });
+    }
+  }
+
+  return (
+    <div className="ai-allocate-wrap">
+      <button
+        type="button"
+        className="ai-allocate-btn"
+        onClick={run}
+        disabled={state.status === "running"}
+        title="OpenAI will read each district's weakest indicators and split your budget across the five areas to maximise the Final Score."
+      >
+        <i className={state.status === "running" ? "fa-solid fa-spinner fa-spin" : "fa-brands fa-openai"} />
+        AI allocate budget
+      </button>
+      {state.status === "done" && (
+        <div className="ai-allocate-result">
+          <strong>{Object.entries(state.split).map(([k, v]) => `${k} ${v.toFixed(0)}%`).join(" · ")}</strong>
+          <p>{state.rationale}</p>
+        </div>
+      )}
+      {state.status === "error" && (
+        <div className="ai-allocate-result"><i className="fa-solid fa-triangle-exclamation" /> {state.message}</div>
+      )}
+    </div>
+  );
+}
 
 export default function BudgetControls({ plan, rates, dispatch }) {
   const { mode, currency } = plan;
@@ -94,6 +135,8 @@ export default function BudgetControls({ plan, rates, dispatch }) {
             <i className="fa-solid fa-sliders" /> Custom
           </button>
         </div>
+
+        <AiAllocateButton dispatch={dispatch} />
 
         {section.split === "custom" && (
           <div className={`remaining ${remaining < 0 ? "over" : remaining > 0 ? "left" : "exact"}`}>

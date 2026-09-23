@@ -39,6 +39,9 @@ A civil-planning budget tool for the city of Astana, in **white · lemonchiffon 
 | **Five tabs** | 🚌 Transport · 🌳 Greenery · 🤝 Social services · 🛡️ Safety · 🏙️ City services — each with its own colour, the area's budget on the left and a **2GIS map of Astana** on the right. |
 | **Autosave** | Every change is validated by a Django form and saved to PostgreSQL (header shows *Saved 14:17*). Reload the page and it's all still there. |
 | **Preloaders** | Pastel bars with a live **%** — full-page on first load, inside each map while it loads, and while exchange rates, saves or coverage calculations are in flight. |
+| **Language switch** (top right) | Translates the whole page into **Kazakh, Russian or Chinese** on the fly (Google Cloud Translation API, cached in Postgres so repeat text is instant). Original language is **English** — shown as a tooltip on the switcher, and every option marks English as `(original)`. |
+| **AI budget allocator** | Next to the split controls — the OpenAI logo button reads every district's weakest `/100` indicators and re-splits your budget across the five areas to maximise the Final Score. Hover it for what it does before you click. |
+| **`/100` score strip** (bottom of each tab) | The indicators that tab affects, each scored out of 100 per the district dataset's formula, with a before → after if your changes improved it. **[Full methodology deck →](https://claude.ai/artifact/7XJyGAk7Kgh82dAKhzNnRu)** — linked here, on the Contact page and in the footer. |
 
 ### 🚌 The Transport tab
 
@@ -359,10 +362,12 @@ Only variables prefixed **`VITE_`** reach the browser.
 | `DGIS_API_KEY` → `VITE_DGIS_API_KEY` | React | 2GIS maps of Astana |
 | `CURRENCYAPI_KEY` | Django only | Exchange rates (free plan: 300 calls/month) |
 | `CURRENCY_CACHE_HOURS` | Django | How long saved rates are reused (`12`) — keeps us well inside the quota |
-| `GOOGLE_API_KEY` | — | Google Maps (not used by the current page — see troubleshooting) |
+| `GOOGLE_API_KEY` | Django only | Language switcher — Google Cloud Translation API (needs "Cloud Translation API" enabled in Google Cloud Console for this project; see troubleshooting) |
 | `GOOGLE_OAUTH_CLIENT_ID` | React + Django | "Sign in with Google" |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Django only | OAuth server-side flows |
 | `GA_MEASUREMENT_ID` | React | Google Analytics 4 (`G-XXXXXXX`, optional) |
+| `OPENAI_API_KEY` | Django only | AI budget allocator button (Chat Completions API) |
+| `OPENAI_MODEL` | Django | Model used by the AI allocator (`gpt-5-mini`) |
 | `DJANGO_SECRET_KEY` · `DJANGO_DEBUG` | Django | Framework settings |
 | `AWS_*` | Django | AWS console details + future IAM access keys |
 | `VITE_FONTAWESOME_KIT_URL` | React | Font Awesome icon kit |
@@ -568,6 +573,18 @@ Money mode falls back to tenge. Check `CURRENCYAPI_KEY` in `.env` and your quota
 <summary><b>Google Maps: <code>ApiNotActivatedMapError</code> (only if you add Google Maps back)</b></summary>
 
 The key in `.env` loads fine, but Google rejects it because the Maps APIs are **not enabled** on its Cloud project. In Google Cloud Console (the project that owns `GOOGLE_API_KEY`) → **APIs & Services → Library**, enable **Maps JavaScript API** (and Geocoding if needed), and make sure billing is on.
+</details>
+
+<details>
+<summary><b>Language switcher shows "Translation unavailable"</b></summary>
+
+The request reaches Django fine, but Google returns `403 API_KEY_SERVICE_BLOCKED`. Same cause as the Maps error above: in Google Cloud Console (the project that owns `GOOGLE_API_KEY`) → **APIs & Services → Library**, enable **Cloud Translation API**, and make sure billing is on. The page still works in English while this is off — nothing else breaks.
+</details>
+
+<details>
+<summary><b>AI allocate button errors</b></summary>
+
+Check `OPENAI_API_KEY` in `.env` is a live key with quota, and that `OPENAI_MODEL` (`gpt-5-mini`) is available to your account. The button shows OpenAI's error message directly rather than failing silently.
 </details>
 
 <details>
