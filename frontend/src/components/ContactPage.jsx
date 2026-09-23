@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import damirPhoto from "../assets/team/damir1.jpg";
 import damirSecondPhoto from "../assets/team/damir2.jpg";
 import sabyrzhanPhoto from "../assets/team/sabyrzhan.jpg";
@@ -23,6 +24,50 @@ function ContactIcon({ type, ...props }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths[type]}</svg>;
 }
 
+function EmailContact({ member, person, copy }) {
+  const [copyStatus, setCopyStatus] = useState("");
+  const addressInput = useRef(null);
+  const recipient = encodeURIComponent(member.email);
+
+  async function copyAddress() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(member.email);
+      setCopyStatus("Email address copied.");
+    } catch {
+      addressInput.current?.focus();
+      addressInput.current?.select();
+      setCopyStatus("Select and copy the email address above.");
+    }
+  }
+
+  return (
+    <details className="contact-email-picker" onToggle={() => setCopyStatus("")}>
+      <summary className="contact-email" aria-label={`${copy.email}: ${person.name}, ${member.email}`}>
+        <ContactIcon type="mail" />
+        <span><span className="contact-link-label">{copy.email}</span><span className="contact-address">{member.email}</span></span>
+        <ContactIcon type="arrow" />
+      </summary>
+      <div className="contact-email-options" role="group" aria-label={`Email options for ${person.name}`}>
+        <p>Choose your email service. The recipient is already filled in.</p>
+        <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${recipient}`} target="_blank" rel="noopener noreferrer">
+          Gmail <span>New tab <ContactIcon type="arrow" /></span>
+        </a>
+        <a href={`https://outlook.live.com/mail/0/deeplink/compose?to=${recipient}`} target="_blank" rel="noopener noreferrer">
+          Outlook <span>New tab <ContactIcon type="arrow" /></span>
+        </a>
+        <a href={`mailto:${member.email}`}>Default email app <ContactIcon type="mail" /></a>
+        <label htmlFor={`email-address-${member.id}`}>Email address</label>
+        <div className="contact-copy-row">
+          <input id={`email-address-${member.id}`} ref={addressInput} type="text" value={member.email} readOnly autoComplete="off" spellCheck={false} />
+          <button type="button" onClick={copyAddress} aria-label={`Copy email address for ${person.name}`}>Copy</button>
+        </div>
+        <p className="contact-copy-status" role="status">{copyStatus}</p>
+      </div>
+    </details>
+  );
+}
+
 function MemberCard({ member, copy }) {
   const person = copy.members[member.id];
   return (
@@ -45,11 +90,7 @@ function MemberCard({ member, copy }) {
         {person.tags.map((tag) => <li key={tag}>{tag}</li>)}
       </ul>
       <div className="contact-links">
-        <a className="contact-email" href={`mailto:${member.email}`} aria-label={`${copy.email}: ${person.name}, ${member.email}`}>
-          <ContactIcon type="mail" />
-          <span><span className="contact-link-label">{copy.email}</span><span className="contact-address">{member.email}</span></span>
-          <ContactIcon type="arrow" />
-        </a>
+        <EmailContact member={member} person={person} copy={copy} />
         <a className="contact-telegram" href={`https://t.me/${member.telegram}`} target="_blank" rel="noopener noreferrer" aria-label={`${copy.telegram}: ${person.name}, @${member.telegram}`}>
           <ContactIcon type="telegram" /><span>{copy.telegram}</span><span className="contact-handle">@{member.telegram}</span>
         </a>
