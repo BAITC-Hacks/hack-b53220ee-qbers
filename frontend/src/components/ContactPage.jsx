@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import PortraitPreview from "./PortraitPreview";
 import damirPhoto from "../assets/team/damir1.jpg";
 import damirSecondPhoto from "../assets/team/damir2.jpg";
 import sabyrzhanPhoto from "../assets/team/sabyrzhan.jpg";
@@ -73,13 +74,9 @@ function MemberCard({ member, copy }) {
   return (
     <article className={`contact-member contact-member--${member.id}`} aria-labelledby={`member-${member.id}`}>
       <div className="contact-portraits">
-        <div className="contact-portrait">
-          <img src={member.photo} alt={`${copy.portrait} ${person.name}`} width="160" height="160" loading="lazy" />
-        </div>
+        <PortraitPreview src={member.photo} alt={`${copy.portrait} ${person.name}`} />
         {member.secondPhoto && (
-          <div className="contact-portrait contact-portrait--second">
-            <img src={member.secondPhoto} alt={`${copy.secondPortrait} ${person.name}`} width="96" height="96" loading="lazy" />
-          </div>
+          <PortraitPreview src={member.secondPhoto} alt={`${copy.secondPortrait} ${person.name}`} secondary />
         )}
       </div>
       <p className="contact-role">{person.role}</p>

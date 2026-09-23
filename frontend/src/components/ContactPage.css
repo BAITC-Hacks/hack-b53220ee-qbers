@@ -37,8 +37,12 @@
 .contact-member--sabyrzhan { --member-tint: var(--lemon); }
 .contact-member--ansel { --member-tint: #eeebff; }
 .contact-portraits { position: relative; width: 196px; height: 160px; margin-bottom: 24px; }
-.contact-portrait { width: 160px; height: 160px; overflow: hidden; border: 6px solid white; border-radius: 50%; background: var(--member-tint); box-shadow: 0 3px 12px rgba(0, 106, 109, 0.14); }
+.contact-portrait { display: block; width: 160px; height: 160px; padding: 0; overflow: hidden; border: 6px solid white; border-radius: 50%; background: var(--member-tint); box-shadow: 0 3px 12px rgba(0, 106, 109, 0.14); cursor: zoom-in; transition: border-color 0.15s, box-shadow 0.15s; }
+.contact-portrait:hover { border-color: var(--turq-soft); box-shadow: 0 4px 18px rgba(0, 106, 109, 0.25); }
 .contact-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.contact-photo-tooltip { position: fixed; inset: auto; box-sizing: border-box; margin: 0; padding: 8px; overflow: hidden; border: 1.5px solid var(--border); border-radius: 12px; background: var(--white); box-shadow: 0 12px 40px rgba(7, 34, 35, 0.25); }
+.contact-photo-tooltip img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 5px; }
+.contact-photo-tooltip::backdrop { background: transparent; pointer-events: none; }
 .contact-member--damir .contact-portrait img { object-position: 27% 35%; transform: scale(1.6); transform-origin: 40% 30%; }
 .contact-member--sabyrzhan .contact-portrait img { object-position: 50% 28%; transform: scale(1.65); transform-origin: 50% 39%; }
 .contact-member--ansel .contact-portrait img { object-position: 50% 50%; transform: scale(2.6); transform-origin: 50% 47%; }
@@ -123,5 +127,5 @@
   .site-navigation a { padding: 8px 10px; font-size: 0.8rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .contact-links a { transition: none; }
+  .contact-links a, .contact-portrait { transition: none; }
 }

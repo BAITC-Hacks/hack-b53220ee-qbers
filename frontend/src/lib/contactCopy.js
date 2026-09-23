@@ -1,7 +1,7 @@
 export const CONTACT_COPY = {
   "title": "Contact",
   "eyebrow": "CONTACT · TEAM QBERS",
-  "heading": "Good cities start with a conversation.",
+  "heading": "Team Qbers, HackAlem Astana Innovations Track",
   "intro": "Have an idea for Astana, a question about the planner, or a project in mind? Meet the people behind QBERS. We'd love to hear from you.",
   "meet": "Meet the team",
   "location": "Building together in Astana, Kazakhstan",
