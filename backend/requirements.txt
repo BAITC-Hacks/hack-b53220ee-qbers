@@ -1,4 +1,5 @@
-Django>=5.2,<7
+# setup installs the newest release within these ranges (pip install --upgrade).
+Django>=6.1,<7
 psycopg[binary]>=3.2
 python-dotenv>=1.0
 google-auth>=2.30

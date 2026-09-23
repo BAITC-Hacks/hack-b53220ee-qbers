@@ -1,11 +1,12 @@
-# PostgreSQL for local development. Every value comes from the repo-root .env,
-# so everyone on the team gets the same database, credentials and port.
-#   start:  docker compose up -d db        stop:  docker compose stop db
+# PostgreSQL for local development. Every value comes from .env (and your
+# personal .env.local, if a port had to change), so everyone on the team gets
+# the same database, credentials and version.
+#   start:  npm start   (or: npm run db:up)        stop:  docker compose stop db
 name: hackalem
 
 services:
   db:
-    image: postgres:${POSTGRES_VERSION:-16}
+    image: postgres:${POSTGRES_VERSION}
     container_name: hackalem-db
     restart: unless-stopped
     environment:
@@ -15,7 +16,8 @@ services:
     ports:
       - "127.0.0.1:${POSTGRES_PORT}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Postgres 18+ keeps data under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
       # Runs once, on first start with an empty volume: loads the team snapshot.
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
@@ -26,4 +28,5 @@ services:
 
 volumes:
   pgdata:
-    name: hackalem-pgdata
+    # One volume per major version, so upgrades never touch the old data.
+    name: hackalem-pgdata-${POSTGRES_VERSION}

@@ -1,7 +1,7 @@
 """Django settings for the HackAlem / QBERS backend.
 
 Every secret and environment-specific value comes from the repo-root `.env`
-file (see `.env.example`). Nothing sensitive is hard-coded here.
+file, plus `.env.local` for personal overrides. Nothing sensitive is hard-coded here.
 """
 import os
 from pathlib import Path
@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BASE_DIR.parent
+# Priority: real environment > .env.local (personal, gitignored) > .env (team).
+load_dotenv(REPO_ROOT / ".env.local")
 load_dotenv(REPO_ROOT / ".env")
 
 
