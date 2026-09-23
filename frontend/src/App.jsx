@@ -2,6 +2,8 @@ import qbersLogo from "./assets/qbers-logo.png";
 import { useEffect, useReducer, useRef, useState } from "react";
 import AreaTabs from "./components/AreaTabs";
 import BudgetControls from "./components/BudgetControls";
+import ContactPage from "./components/ContactPage";
+import { CONTACT_COPY as copy } from "./lib/contactCopy";
 import { DndProvider } from "./components/dnd/DndProvider";
 import { LoadingOverlay, ProgressBar } from "./components/ProgressBar";
 import { useProgress } from "./hooks/useProgress";
@@ -119,6 +121,9 @@ function SaveStatus({ save }) {
 
 // ---------------------------------------------------------------------------
 export default function App() {
+  const [page, setPage] = useState(() => window.location.hash === "#/contact" ? "contact" : "planner");
+  const isContact = page === "contact";
+  const initialRequestsStarted = useRef(false);
   const [plan, dispatch] = useReducer(budgetReducer, null);
   const [health, setHealth] = useState(null);
   const [rates, setRates] = useState({ data: null, error: null, done: false, floor: 0 });
@@ -128,14 +133,35 @@ export default function App() {
   const [save, setSave] = useState({ state: "idle" });
   const saveTimer = useRef(null);
 
-  // Initial page load: health, the saved plan and exchange rates (each fills a third of the bar).
   useEffect(() => {
-    // Keyed by name, so React StrictMode running this twice in development is harmless.
-    const done = (key) => () => setLoaded((l) => ({ ...l, [key]: true }));
+    const onNavigate = () => {
+      setPage(window.location.hash === "#/contact" ? "contact" : "planner");
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onNavigate);
+    return () => window.removeEventListener("hashchange", onNavigate);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = "en";
+    document.title = isContact ? `${copy.title} · QBERS` : "Astana Budget Planner";
+  }, [isContact]);
+
+  // The shared navbar displays database health on both pages.
+  useEffect(() => {
     api("health/")
       .then(setHealth)
       .catch((e) => setHealth({ database: { ok: false, version: e.message }, error: e.message }))
-      .finally(done("health"));
+      .finally(() => setLoaded((l) => ({ ...l, health: true })));
+  }, []);
+
+  // Load the saved plan and exchange rates when the planner is first opened.
+  useEffect(() => {
+    // Contact is a static page and must also open without the budget backend.
+    if (page !== "planner" || initialRequestsStarted.current) return;
+    initialRequestsStarted.current = true;
+    // Keyed by name, so React StrictMode running this twice in development is harmless.
+    const done = (key) => () => setLoaded((l) => ({ ...l, [key]: true }));
     api("plan/")
       .then((p) => dispatch({ type: "load", plan: planFromApi(p) }))
       .catch((e) => setLoadError(e.message))
@@ -144,7 +170,7 @@ export default function App() {
       .then((data) => setRates({ data, error: null, done: true, floor: 100 }))
       .catch((e) => setRates({ data: null, error: e.message, done: true, floor: 100 }))
       .finally(done("currency"));
-  }, []);
+  }, [page]);
 
   // Autosave to Postgres shortly after each change (Django validates it with BudgetPlanForm).
   useEffect(() => {
@@ -169,23 +195,27 @@ export default function App() {
   return (
     <>
       {/* Page preloader — fills as each of the three initial requests finishes */}
-      <LoadingOverlay done={pageDone} floor={(settled / 3) * 90} label="Loading budget planner" className="is-page" />
+      {!isContact && <LoadingOverlay done={pageDone} floor={(settled / 3) * 90} label="Loading budget planner" className="is-page" />}
 
       <header className="topbar">
-        <div className="brand">
+        <a className="brand brand-link" href="#/">
           <img className="brand-mark" src={qbersLogo} alt="QBERS" width="56" height="56" />
           <div>
             <strong>Astana Budget Planner</strong>
-            <span>Астана қаласының бюджетін жоспарлау</span>
+            <span lang="kk">Астана қаласының бюджетін жоспарлау</span>
           </div>
-        </div>
+        </a>
         <div className="topbar-status">
+          <nav className="site-navigation" aria-label="Main navigation">
+            <a href="#/" aria-current={!isContact ? "page" : undefined}>Budget planner</a>
+            <a href="#/contact" aria-current={isContact ? "page" : undefined}>Contact</a>
+          </nav>
           {plan && <SaveStatus save={save} />}
           <DbStatus health={health} />
         </div>
       </header>
 
-      <main className="page">
+      {isContact ? <ContactPage copy={copy} /> : <main className="page">
         {loadError && (
           <div className="banner bad">
             <i className="fa-solid fa-triangle-exclamation" /> Couldn't load the budget from the database: {loadError}. Is <code>npm start</code> running?
@@ -197,7 +227,7 @@ export default function App() {
             <AreaTabs plan={plan} rates={rates} active={active} onSelect={setActive} dispatch={dispatch} />
           </DndProvider>
         )}
-      </main>
+      </main>}
 
       <footer className="footer">
         <i className="fa-solid fa-map-location-dot" /> Maps © 2GIS · Exchange rates: currencyapi.com · Team QBERS
