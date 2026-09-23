@@ -38,8 +38,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .models import (BirthYear, BusRoute, BusStop, District, EducationPlace, GreenArea, GreenCell, PopulationCell,
-                     RailStation, ReferenceFigure, SafetyPlace, Tree)
+from .models import (BirthYear, BusRoute, BusStop, CityServiceStat, District, EducationPlace, GreenArea, GreenCell,
+                     PopulationCell, RailStation, ReferenceFigure, SafetyPlace, Tree)
 
 RAW = Path(settings.REPO_ROOT) / "data" / "raw"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "open_data.json.gz"
@@ -71,6 +71,9 @@ DISTRICTS = {
                    profile="Created in 2024 — not covered by the district dataset."),
 }
 INDICATORS = ["t1", "t2", "e1", "e2", "s1", "s2", "b1", "b2", "c1", "c2"]
+# District_Dataset_EN.docx "Population share" column — the 5 districts the dataset covers
+# (it predates Saraishyq). Used only by the Score tab's population-weighted D_avg.
+DOCX_POP_SHARE = {"Yesil": 0.27, "Almaty": 0.24, "Saryarqa": 0.20, "Baikonyr": 0.13, "Nura": 0.16}
 
 # Births in Astana by year — Bureau of National Statistics via qazatlas.kz/ru/city/astana/rozhdaemost.
 # 2025 is summed from the monthly figures on the same page (Jan–Jul 15,157 + Aug–Dec 11,240).
@@ -705,6 +708,46 @@ def education_references(today):
     ]
 
 
+# ikomekastana.kz — Astana's monitoring-centre residents' appeals API (same-origin, public).
+IKOMEKASTANA_APPEALS = "https://ikomekastana.kz/api/statistics/appeals"
+# Russian category name → our utility bucket.
+UTILITY_CATEGORIES = {
+    "Электроснабжение города": "electricity", "Электроснабжение МЖД": "electricity",
+    "Водоснабжение города": "water", "Водоснабжение МЖД": "water",
+    "Теплоснабжение города": "heating", "Теплоснабжение МЖД": "heating",
+    "Канализация": "sewage",
+}
+
+
+def build_city_stats(log):
+    def fetch():
+        return requests.get(IKOMEKASTANA_APPEALS, headers={"User-Agent": USER_AGENT}, timeout=30).content
+
+    data = json.loads(_cached("ikomekastana_appeals.json", fetch, log))
+    rows = []
+    for entry in data.get("byCategoryForAllYears", []):
+        try:
+            year = int(entry["year"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        for svc in entry.get("services", []):
+            utility = UTILITY_CATEGORIES.get(svc["name"])
+            if utility:
+                rows.append({"year": year, "utility": utility, "category_name": svc["name"], "count": svc["value"]})
+    # Keep the larger of city+MZD when both appear for a year/utility (sum them instead).
+    merged = {}
+    for r in rows:
+        key = (r["year"], r["utility"])
+        if key in merged:
+            merged[key]["count"] += r["count"]
+            merged[key]["category_name"] += f" + {r['category_name']}"
+        else:
+            merged[key] = dict(r)
+    out = list(merged.values())
+    log(f"  {len(out)} year×utility rows from {len(data.get('byCategoryForAllYears', []))} years")
+    return out
+
+
 ESAULET = "https://gis.esaulet.kz/server/rest/services/dop_sloi_geoportal_otkr/MapServer"
 
 
@@ -742,9 +785,9 @@ def build_references(log):
 
 @transaction.atomic
 def save(districts, stops, stations, routes, cells, green_cells=(), green_areas=(), trees=(), route_colors=None,
-         safety=(), references=(), education=(), births=None):
-    for model in (BirthYear, EducationPlace, ReferenceFigure, SafetyPlace, Tree, GreenArea, GreenCell, PopulationCell, BusStop,
-                  RailStation, BusRoute, District):
+         safety=(), references=(), education=(), births=None, city_stats=()):
+    for model in (CityServiceStat, BirthYear, EducationPlace, ReferenceFigure, SafetyPlace, Tree, GreenArea, GreenCell,
+                  PopulationCell, BusStop, RailStation, BusRoute, District):
         model.objects.all().delete()
     by_name = {}
     for d in districts:
@@ -755,6 +798,7 @@ def save(districts, stops, stations, routes, cells, green_cells=(), green_areas=
             b1_street_safety=d.get("b1"), b2_road_safety=d.get("b2"), c1_utilities=d.get("c1"),
             c2_requests=d.get("c2"), profile=d.get("profile", ""),
             births_2024=d.get("births_2024", DISTRICT_BIRTHS_2024.get(d["name"])),
+            docx_population_share=d.get("docx_population_share", DOCX_POP_SHARE.get(d["name"])),
             color=d["color"], area_km2=d["area_km2"], bbox=d["bbox"],
             outline=d.get("outline") or [_simplify(r) for r in d["outer"]],
             holes=d.get("holes") if "outline" in d else [_simplify(r) for r in d["inner"]],
@@ -798,6 +842,10 @@ def save(districts, stops, stations, routes, cells, green_cells=(), green_areas=
     ], batch_size=2000)
     births = births or {str(y): b for y, b in BIRTHS.items()}
     BirthYear.objects.bulk_create([BirthYear(year=int(y), births=b, estimated=int(y) in BIRTHS_ESTIMATED) for y, b in births.items()])
+    CityServiceStat.objects.bulk_create([
+        CityServiceStat(year=c["year"], utility=c["utility"], category_name=c["category_name"], count=c["count"])
+        for c in city_stats
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -813,7 +861,8 @@ def export_fixture(log=print):
              "share": d.population_share, "yoy": d.population_change, "t1": d.t1_congestion,
              "t2": d.t2_accessibility, "e1": d.e1_green, "e2": d.e2_air, "s1": d.s1_schools, "s2": d.s2_clinics,
              "b1": d.b1_street_safety, "b2": d.b2_road_safety, "c1": d.c1_utilities, "c2": d.c2_requests,
-             "profile": d.profile, "births_2024": d.births_2024, "color": d.color, "area_km2": d.area_km2,
+             "profile": d.profile, "births_2024": d.births_2024, "docx_population_share": d.docx_population_share,
+             "color": d.color, "area_km2": d.area_km2,
              "bbox": d.bbox, "outline": d.outline, "holes": d.holes}
             for d in districts
         ],
@@ -836,6 +885,8 @@ def export_fixture(log=print):
         "education": [{"kind": x.kind, "subtype": x.subtype, "public": x.public, "name": x.name, "address": x.address,
                        "lat": x.lat, "lon": x.lon, "district": name[x.district_id]} for x in EducationPlace.objects.all()],
         "births": {str(b.year): b.births for b in BirthYear.objects.all()},
+        "city_stats": [{"year": c.year, "utility": c.utility, "category_name": c.category_name, "count": c.count}
+                       for c in CityServiceStat.objects.all()],
         "references": [{f.name: (getattr(r, f.name).isoformat() if f.name == "retrieved" and r.retrieved else getattr(r, f.name))
                         for f in ReferenceFigure._meta.fields if f.name != "id"} for r in ReferenceFigure.objects.all()],
     }
@@ -850,7 +901,7 @@ def fixture_needed():
     if not District.objects.exists() or District.objects.filter(b1_street_safety__isnull=False).count() == 0:
         return True  # also reload when districts predate the full set of dataset indicators
     return any(not m.objects.exists() for m in (BusStop, RailStation, BusRoute, PopulationCell, GreenCell, Tree, SafetyPlace,
-                                                 ReferenceFigure, EducationPlace, BirthYear))
+                                                 ReferenceFigure, EducationPlace, BirthYear, CityServiceStat))
 
 
 def load_fixture(force=False, log=print):
@@ -875,6 +926,7 @@ def load_fixture(force=False, log=print):
         references=[r | {"retrieved": r["retrieved"][:10] if r.get("retrieved") else None} for r in data.get("references", [])],
         education=data.get("education", []),
         births=data.get("births"),
+        city_stats=data.get("city_stats", []),
     )
     log(f"  loaded open data built {data['version'][:10]}: {len(data['stops'])} stops, "
         f"{len(data['green_areas'])} green areas, {len(data['trees'])} trees")
@@ -900,9 +952,11 @@ def run(log=print):
     safety = build_safety(districts, log)
     log("Schools & kindergartens (2GIS)")
     education = build_education(districts, log)
+    log("City-services complaints (ikomekastana.kz)")
+    city_stats = build_city_stats(log)
     log("Reference figures (city GIS, ATO, education)")
     references = build_references(log)
     save(districts, stops, stations, routes, cells, green_cells, green_areas, trees, safety=safety, references=references,
-         education=education)
+         education=education, city_stats=city_stats)
     log("Saved to PostgreSQL.")
     export_fixture(log)

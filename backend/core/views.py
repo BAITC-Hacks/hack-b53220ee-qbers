@@ -6,7 +6,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
 from django.db import connection
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -17,8 +17,15 @@ from google.oauth2 import id_token
 from .budget import DEFAULT_MONEY_TOTAL, DEFAULT_UNITS_TOTAL, default_section
 from .forms import BudgetPlanForm
 from .greenery import GreeneryScenarioForm, default_scenario as default_greenery, reference_payload as greenery_payload
+from .cityservices import CityServiceScenarioForm, default_scenario as default_city, reference_payload as city_payload
 from .education import EducationScenarioForm, default_scenario as default_education, reference_payload as education_payload
-from .models import BudgetPlan, District, EducationScenario, ExchangeRates, GreeneryScenario, SafetyScenario, TransportScenario
+from .models import (BudgetPlan, CityServiceScenario, District, EducationScenario, ExchangeRates, GreeneryScenario,
+                     SafetyScenario, TransportScenario)
+from . import ai as ai_module
+from . import docxscore
+from .greenery import default_scenario as default_greenery
+from .safety import default_scenario as default_safety
+from .transport import default_scenario as default_transport
 from .safety import SafetyScenarioForm, default_scenario as default_safety, district_payload, reference_payload as safety_payload, references
 from .transport import TransportScenarioForm, default_scenario, reference_payload
 
@@ -265,6 +272,147 @@ def education_scenario(request):
         scenario.data = form.cleaned_data
         scenario.save()
     return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# City services tab — utility complaints (ikomekastana.kz) + fixes
+# ---------------------------------------------------------------------------
+@require_GET
+def cityservices_data(request):
+    payload = city_payload()
+    if not payload["districts"]:
+        return JsonResponse({"error": "No map data yet — run: npm run data:load (or restart npm start)"}, status=503)
+    return JsonResponse(payload)
+
+
+@require_http_methods(["GET", "PUT"])
+def cityservices_scenario(request):
+    scenario = CityServiceScenario.objects.order_by("-updated_at").first()
+    if scenario is None:
+        scenario = CityServiceScenario.objects.create(data=default_city())
+    if request.method == "PUT":
+        form = CityServiceScenarioForm(_json_body(request))
+        if not form.is_valid():
+            errors = [e for field in form.errors.values() for e in field]
+            return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)
+        scenario.data = form.cleaned_data
+        scenario.save()
+    return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# Score tab (District_Dataset_EN.docx formula) + AI features
+# ---------------------------------------------------------------------------
+def _latest(model, default_fn):
+    obj = model.objects.order_by("-updated_at").first()
+    return obj.data if obj else default_fn()
+
+
+def _current_scenarios():
+    return {
+        "transport": _latest(TransportScenario, default_transport),
+        "greenery": _latest(GreeneryScenario, default_greenery),
+        "safety": _latest(SafetyScenario, default_safety),
+        "education": _latest(EducationScenario, default_education),
+        "city": _latest(CityServiceScenario, default_city),
+    }
+
+
+def _score_now():
+    districts = list(District.objects.all())
+    by_name = {d.name: d for d in districts}
+    plan = BudgetPlan.objects.order_by("-updated_at").first()
+    total_kzt = float(plan.money["total"]) if plan else 0.0
+    unit_kzt = total_kzt / 100
+    scen = _current_scenarios()
+    effects = docxscore.project_indicators(
+        by_name, unit_kzt, transport=scen["transport"], greenery=scen["greenery"], safety=scen["safety"],
+        education=scen["education"], city=scen["city"],
+    )
+    after = docxscore.apply_effects(districts, effects)
+    before = docxscore.score(by_name)
+    after_score = docxscore.score(by_name, after)
+    return districts, by_name, before, after_score, effects, plan, scen
+
+
+@require_GET
+def score_data(request):
+    districts, by_name, before, after, effects, plan, scen = _score_now()
+    if not districts:
+        return JsonResponse({"error": "No map data yet — run: npm run data:load (or restart npm start)"}, status=503)
+
+    def rows(result):
+        return {n: {"values": r["values"], "D_d": r["D_d"], "share": r["share"]} for n, r in result["districts"].items()}
+
+    return JsonResponse({
+        "districts": [{"name": d.name, "name_kk": d.name_kk, "color": d.color, "population": d.population,
+                      "in_dataset": d.docx_population_share is not None} for d in districts],
+        "weights": docxscore.WEIGHTS, "labels": docxscore.LABELS, "categories": docxscore.CATEGORY, "critical": docxscore.CRITICAL,
+        "before": {"rows": rows(before), "D_avg": before["D_avg"], "min_D": before["min_D"], "N_crit": before["N_crit"], "score": before["score"]},
+        "after": {"rows": rows(after), "D_avg": after["D_avg"], "min_D": after["min_D"], "N_crit": after["N_crit"], "score": after["score"]},
+    })
+
+
+def _plan_split_pct(plan):
+    total = float(plan.money["total"]) or 1
+    return {k: float(plan.money["allocations"][k]) / total * 100 for k in ("transport", "greenery", "social", "safety", "city")}
+
+
+@require_POST
+def ai_allocate(request):
+    districts, by_name, before, after, effects, plan, scen = _score_now()
+    if plan is None:
+        return JsonResponse({"error": "No budget plan yet."}, status=503)
+    try:
+        split, rationale = ai_module.suggest_allocation(after, districts, _plan_split_pct(plan))
+    except ai_module.AIError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+
+    from decimal import Decimal
+    for mode, section, total in (("money", plan.money, Decimal(plan.money["total"])), ("units", plan.units, Decimal(plan.units["total"]))):
+        decimals = 2 if mode == "money" else 0
+        allocations = {}
+        remaining = total
+        keys = ["transport", "greenery", "social", "safety", "city"]
+        for k in keys[:-1]:
+            v = (total * Decimal(str(split[k])) / 100).quantize(Decimal(10) ** -decimals)
+            allocations[k] = str(v)
+            remaining -= v
+        allocations[keys[-1]] = str(remaining.quantize(Decimal(10) ** -decimals))
+        section["split"] = "custom"
+        section["allocations"] = allocations
+    plan.save()
+    return JsonResponse({"plan": {"mode": plan.mode, "currency": plan.currency, "money": plan.money, "units": plan.units,
+                                 "updated_at": plan.updated_at.isoformat()}, "split": split, "rationale": rationale})
+
+
+@require_POST
+def ai_report(request):
+    districts, by_name, before, after, effects, plan, scen = _score_now()
+    if not districts:
+        return JsonResponse({"error": "No map data yet."}, status=503)
+    summaries = {
+        "transport": {"new_bus_stops": sum(1 for s in scen["transport"].get("new_stops", []) if s.get("kind") == "bus"),
+                     "new_rail_stations": sum(1 for s in scen["transport"].get("new_stops", []) if s.get("kind") == "rail"),
+                     "new_buses": sum((scen["transport"].get("new_buses") or {}).values())},
+        "greenery": {"new_trees": sum(p.get("count", 0) for p in scen["greenery"].get("plantings", []))},
+        "safety": {"placed": len(scen["safety"].get("placements", [])),
+                  "added": scen["safety"].get("added", {})},
+        "education": {"placed": len(scen["education"].get("placements", [])), "added": scen["education"].get("added", {})},
+        "city": {"fixes": len(scen["city"].get("fixes", []))},
+    }
+    try:
+        report = ai_module.generate_report_content(after, districts, summaries)
+    except ai_module.AIError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    plan_summary = ""
+    if plan:
+        plan_summary = (f"{plan.mode} mode, total {plan.money['total']} {plan.currency} / {plan.units['total']} units, "
+                        f"split {json.dumps(plan.money['allocations'])}")
+    pdf_bytes = ai_module.render_pdf(report, after, plan_summary)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="astana-budget-ai-report.pdf"'
+    return response
 
 
 @require_POST

@@ -78,3 +78,19 @@ export const EDU_NEW_SIGNS = {
   school: square(EDU_COLORS.school, EDU_GLYPHS.school, { ring: true }),
   kindergarten: square(EDU_COLORS.kindergarten_state, EDU_GLYPHS.kindergarten.replace("currentColor", EDU_COLORS.kindergarten_state), { ring: true }),
 };
+
+// ---------------------------------------------------------------------------
+// City-services fix signs (pipe / wiring / heater)
+// ---------------------------------------------------------------------------
+const UTIL_GLYPHS = {
+  water_pipe: '<rect x="10" y="17" width="20" height="6" rx="2" fill="#fff"/><rect x="12" y="14" width="4" height="12" fill="#fff"/><rect x="24" y="14" width="4" height="12" fill="#fff"/>',
+  electrical_wiring: '<path d="M22 10l-8 11h5l-4 9 11-12h-5z" fill="#fff"/>',
+  heater: '<rect x="13" y="10" width="14" height="20" rx="2" fill="#fff"/><path d="M16 15q2 3 0 5t0 5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M21 15q2 3 0 5t0 5" stroke="currentColor" stroke-width="1.6" fill="none"/>',
+};
+export const UTIL_COLORS = { water_pipe: "#1976D2", electrical_wiring: "#F9A825", heater: "#D84315" };
+export const UTIL_SIGNS = Object.fromEntries(
+  Object.entries(UTIL_COLORS).map(([k, c]) => [k, square(c, UTIL_GLYPHS[k].replaceAll("currentColor", c))])
+);
+export const UTIL_NEW_SIGNS = Object.fromEntries(
+  Object.entries(UTIL_COLORS).map(([k, c]) => [k, square(c, UTIL_GLYPHS[k].replaceAll("currentColor", c), { ring: true })])
+);

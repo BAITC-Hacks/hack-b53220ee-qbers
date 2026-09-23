@@ -260,7 +260,7 @@ code { font-size: 0.9em; }
 .areas { margin-top: 14px; }
 .tab-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 .tab {
@@ -765,3 +765,33 @@ code { font-size: 0.9em; }
 .count-box { min-width: 0; }
 .count-box strong { font-size: clamp(0.95rem, 1.35vw, 1.4rem); white-space: nowrap; }
 .count-box small { overflow-wrap: anywhere; }
+
+/* =====================================================================
+   Score / Indicators tab
+   ===================================================================== */
+.tab-panel.is-indicators { display: block; padding: 14px; }
+.score-tab { display: flex; flex-direction: column; gap: 12px; }
+.score-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+.score-box { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1.5px solid var(--border); background: var(--lemon); font-size: 0.82rem; color: var(--muted); }
+.score-box.grand { background: var(--turq-soft); }
+.score-box .score-delta { font-size: 1.1rem; color: var(--ink); }
+.score-delta { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.score-delta i { font-size: 0.7rem; color: var(--muted); }
+.score-delta strong.up { color: var(--ok); }
+.score-delta strong.down { color: var(--bad); }
+.ai-result { margin-top: 8px; padding: 10px 12px; border: 1.5px solid var(--border); background: #fbfdfd; font-size: 0.86rem; }
+.ai-result p { margin: 0 0 6px; }
+.district-table.indicators th[title] { cursor: help; }
+.district-table td.crit { background: #fdecea; }
+.score-mini { border-color: var(--turq); }
+.score-mini-row { display: flex; align-items: center; gap: 10px; margin: 8px 0 10px; font-size: 1rem; }
+.score-mini-row strong { font-size: 1.3rem; color: var(--turq-ink); }
+.score-mini-row strong.up { color: var(--ok); }
+
+/* City services */
+.cityservices .count-box { border-width: 2px; }
+.bar-chart { display: flex; align-items: flex-end; gap: 8px; height: var(--h, 140px); margin: 10px 0; padding: 0 4px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 1; height: 100%; gap: 4px; min-width: 0; }
+.bar-val { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+.bar { width: 70%; min-height: 2px; }
+.bar-label { font-size: 0.7rem; color: var(--muted); }

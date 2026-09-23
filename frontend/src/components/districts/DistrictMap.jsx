@@ -14,7 +14,7 @@ const MAPGL_URL = "https://mapgl.2gis.com/api/js/v1";
  * Tab-specific layers go in `children(map, ready)` — components that add markers etc.
  * Pass `drop={{ id, accept, onDrop(item, lon, lat) }}` to accept palette items.
  */
-export default function DistrictMap({ districts, selected, showRegions = true, onSelect, drop, label = "Loading map", children }) {
+export default function DistrictMap({ districts, selected, showRegions = true, fill = true, onSelect, drop, label = "Loading map", children }) {
   const el = useRef(null);
   const map = useRef(null);
   const [ready, setReady] = useState(false);
@@ -68,7 +68,7 @@ export default function DistrictMap({ districts, selected, showRegions = true, o
     };
   }, []);
 
-  useDistrictLayer(map, ready, districts, { show: showRegions, selected, onClick: (i) => onSelect?.(i) });
+  useDistrictLayer(map, ready, districts, { show: showRegions, selected, fill, onClick: (i) => onSelect?.(i) });
   useRegionZoom(map, ready, districts, selected);
 
   return (

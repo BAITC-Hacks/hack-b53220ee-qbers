@@ -1,7 +1,8 @@
 from django.contrib import admin
 
 from .models import (BudgetPlan, BusRoute, BusStop, District, ExchangeRates, GreenArea, GreeneryScenario, RailStation,
-                     ReferenceFigure, SafetyPlace, SafetyScenario, Tree, TransportScenario, EducationPlace, EducationScenario, BirthYear)
+                     ReferenceFigure, SafetyPlace, SafetyScenario, Tree, TransportScenario, EducationPlace, EducationScenario, BirthYear,
+                     CityServiceStat, CityServiceScenario)
 
 admin.site.register(BudgetPlan)
 admin.site.register(ExchangeRates)
@@ -9,6 +10,7 @@ admin.site.register(TransportScenario)
 admin.site.register(GreeneryScenario)
 admin.site.register(SafetyScenario)
 admin.site.register(EducationScenario)
+admin.site.register(CityServiceScenario)
 admin.site.register(BirthYear)
 
 
@@ -68,3 +70,9 @@ class EducationPlaceAdmin(admin.ModelAdmin):
     list_display = ("name", "kind", "subtype", "public", "district")
     list_filter = ("kind", "subtype", "district")
     search_fields = ("name", "address")
+
+
+@admin.register(CityServiceStat)
+class CityServiceStatAdmin(admin.ModelAdmin):
+    list_display = ("year", "utility", "category_name", "count")
+    list_filter = ("utility",)

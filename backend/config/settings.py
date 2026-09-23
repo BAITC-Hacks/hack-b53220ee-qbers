@@ -110,6 +110,11 @@ CURRENCY_CACHE_HOURS = int(env("CURRENCY_CACHE_HOURS", "12"))
 # 2GIS catalog API — used only by `manage.py build_open_data` to download stations.
 DGIS_API_KEY = env("DGIS_API_KEY")
 
+# OpenAI — server-side only, used for the AI budget-allocation suggestion and the
+# downloadable AI report. The key never reaches the browser.
+OPENAI_API_KEY = env("OPENAI_API_KEY")
+OPENAI_MODEL = env("OPENAI_MODEL", "gpt-5-mini")
+
 # AWS — read here so future boto3 code has one place to pull from.
 AWS_CONSOLE_URL = env("AWS_CONSOLE_URL")
 AWS_CONSOLE_USERNAME = env("AWS_CONSOLE_USERNAME")

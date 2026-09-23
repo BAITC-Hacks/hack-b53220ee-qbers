@@ -1,39 +1,39 @@
 import { useRef } from "react";
 import { AREAS } from "../lib/areas";
-import { DECIMALS, formatAmount } from "../lib/money";
-import RegionTab from "./districts/RegionTab";
-import NumberField from "./NumberField";
+import { formatAmount } from "../lib/money";
+import CityServicesTab from "./cityservices/CityServicesTab";
 import EducationTab from "./education/EducationTab";
 import GreeneryTab from "./greenery/GreeneryTab";
+import ScoreTab from "./score/ScoreTab";
 import SafetyTab from "./safety/SafetyTab";
 import TransportTab from "./transport/TransportTab";
 
-export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
+// The Indicators tab is a cross-cutting analysis view, not a 6th budget area — it carries no
+// allocation of its own, so it's kept out of lib/areas.js (which drives the 5-way budget split).
+const INDICATORS_TAB = { id: "indicators", label: "Indicators", icon: "fa-solid fa-chart-line", tint: "#E7E9EF", ink: "#33384A" };
+const TABS = [...AREAS, INDICATORS_TAB];
+
+export default function AreaTabs({ plan, rates, active, onSelect, dispatch, onPlanUpdated }) {
   const { mode, currency } = plan;
   const section = plan[mode];
   const tabs = useRef([]);
-  const area = AREAS.find((a) => a.id === active);
-  const value = section.allocations[area.id];
-  const share = section.total > 0 ? (value / section.total) * 100 : 0;
-  const kzt = mode === "money" && currency !== "KZT" && rates.data?.rates[currency]
-    ? formatAmount(value / rates.data.rates[currency], { mode, currency: "KZT" })
-    : null;
+  const tab = TABS.find((a) => a.id === active) || TABS[0];
+  const isIndicators = tab.id === "indicators";
 
-  // Arrow keys move between tabs (WAI-ARIA tabs pattern).
   function onKeyDown(e) {
-    const i = AREAS.findIndex((a) => a.id === active);
-    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: AREAS.length - 1 }[e.key];
+    const i = TABS.findIndex((a) => a.id === active);
+    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
     if (next === undefined) return;
     e.preventDefault();
-    const target = AREAS[(next + AREAS.length) % AREAS.length];
+    const target = TABS[(next + TABS.length) % TABS.length];
     onSelect(target.id);
-    tabs.current[AREAS.indexOf(target)]?.focus();
+    tabs.current[TABS.indexOf(target)]?.focus();
   }
 
   return (
     <section className="areas">
-      <div className="tab-list" role="tablist" aria-label="Budget areas" onKeyDown={onKeyDown}>
-        {AREAS.map((a, i) => (
+      <div className="tab-list" role="tablist" aria-label="Budget areas and indicators" onKeyDown={onKeyDown}>
+        {TABS.map((a, i) => (
           <button
             key={a.id}
             ref={(el) => (tabs.current[i] = el)}
@@ -48,58 +48,32 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
           >
             <i className={a.icon} />
             <span className="tab-label">{a.label}</span>
-            <span className="tab-amount">{formatAmount(section.allocations[a.id], { mode, currency, compact: true })}</span>
+            {section.allocations[a.id] !== undefined && (
+              <span className="tab-amount">{formatAmount(section.allocations[a.id], { mode, currency, compact: true })}</span>
+            )}
           </button>
         ))}
       </div>
 
       <div
-        className={`tab-panel ${["transport", "greenery", "safety", "social"].includes(area.id) ? "is-transport" : ""}`}
+        className={`tab-panel ${isIndicators ? "is-indicators" : "is-transport"}`}
         role="tabpanel"
-        id={`panel-${area.id}`}
-        aria-labelledby={`tab-${area.id}`}
-        style={{ "--tint": area.tint, "--ink": area.ink }}
+        id={`panel-${tab.id}`}
+        aria-labelledby={`tab-${tab.id}`}
+        style={{ "--tint": tab.tint, "--ink": tab.ink }}
       >
-        {area.id === "transport" ? (
+        {tab.id === "transport" ? (
           <TransportTab plan={plan} rates={rates.data?.rates} />
-        ) : area.id === "greenery" ? (
+        ) : tab.id === "greenery" ? (
           <GreeneryTab plan={plan} rates={rates.data?.rates} />
-        ) : area.id === "safety" ? (
+        ) : tab.id === "safety" ? (
           <SafetyTab plan={plan} rates={rates.data?.rates} />
-        ) : area.id === "social" ? (
+        ) : tab.id === "social" ? (
           <EducationTab plan={plan} rates={rates.data?.rates} />
+        ) : tab.id === "city" ? (
+          <CityServicesTab plan={plan} rates={rates.data?.rates} />
         ) : (
-        <>
-        <aside className="area-budget">
-          <div className="area-icon"><i className={area.icon} /></div>
-          <h3>{area.label}</h3>
-          <p className="area-blurb">{area.blurb}</p>
-
-          <span className="area-caption">Budget for this area</span>
-          <strong className="area-amount">{formatAmount(value, { mode, currency })}</strong>
-          {kzt && <span className="area-kzt">≈ {kzt}</span>}
-
-          <div className="share">
-            <div className="share-bar"><div style={{ width: `${Math.min(100, share)}%` }} /></div>
-            <span>{share.toFixed(1)}% of {formatAmount(section.total, { mode, currency, compact: true })}</span>
-          </div>
-
-          <div className="area-edit">
-            <span className="area-caption">Set a custom amount</span>
-            <NumberField
-              ariaLabel={`Custom ${area.label} budget`}
-              value={value}
-              decimals={DECIMALS[mode]}
-              suffix={mode === "units" ? "units" : currency}
-              onChange={(v) => dispatch({ type: "allocation", area: area.id, value: v })}
-            />
-            <small>{section.split === "equal" ? "Editing switches the split to Custom." : "Custom split is on."}</small>
-          </div>
-        </aside>
-
-        {/* key: a new map (and preloader) every time this tab is opened */}
-        <RegionTab key={area.id} title={area.label.toLowerCase()} indicators={["c1", "c2"]} />
-        </>
+          <ScoreTab onPlanUpdated={onPlanUpdated} />
         )}
       </div>
     </section>

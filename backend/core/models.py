@@ -61,6 +61,9 @@ class District(models.Model):
     c2_requests = models.PositiveSmallIntegerField(null=True)
     profile = models.CharField(max_length=200, blank=True)          # docx district profile
     births_2024 = models.PositiveIntegerField(null=True)            # qazatlas.kz (Bureau of National Statistics)
+    # District_Dataset_EN.docx "Population share" column (5 original districts only;
+    # Saraishyq post-dates the dataset). Used only for the Score tab's D_avg weighting.
+    docx_population_share = models.FloatField(null=True)
     color = models.CharField(max_length=7)
     area_km2 = models.FloatField()
     bbox = models.JSONField()      # [minLon, minLat, maxLon, maxLat]
@@ -258,6 +261,31 @@ class BirthYear(models.Model):
 
 class EducationScenario(models.Model):
     """The user's social-services edits: new schools/kindergartens, staff, pay, costs, projection settings."""
+
+    data = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+
+# ---------------------------------------------------------------------------
+# City services tab — utility complaints (ikomekastana.kz) + user fixes
+# ---------------------------------------------------------------------------
+class CityServiceStat(models.Model):
+    """Residents' appeals to Astana's monitoring centre, by year and service category."""
+
+    UTILITIES = [("electricity", "Electricity"), ("water", "Water"), ("heating", "Heating"), ("sewage", "Sewage")]
+    year = models.PositiveSmallIntegerField()
+    utility = models.CharField(max_length=15, choices=UTILITIES)
+    category_name = models.CharField(max_length=120)  # original Russian category name
+    count = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ("year", "utility")
+        ordering = ["utility", "year"]
+
+
+class CityServiceScenario(models.Model):
+    """The user's city-services edits: fixes placed on the map, costs."""
 
     data = models.JSONField()
     updated_at = models.DateTimeField(auto_now=True)

@@ -224,7 +224,8 @@ export default function App() {
         {plan && (
           <DndProvider>
             <BudgetControls plan={plan} rates={rates} dispatch={dispatch} />
-            <AreaTabs plan={plan} rates={rates} active={active} onSelect={setActive} dispatch={dispatch} />
+            <AreaTabs plan={plan} rates={rates} active={active} onSelect={setActive} dispatch={dispatch}
+              onPlanUpdated={() => api("plan/").then((p) => dispatch({ type: "load", plan: planFromApi(p) }))} />
           </DndProvider>
         )}
       </main>}
