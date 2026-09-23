@@ -21,7 +21,7 @@ def env_bool(name, default=False):
     return env(name, str(default)).lower() in {"1", "true", "yes", "on"}
 
 
-SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-insecure-change-me")
+SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 
@@ -67,14 +67,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# PostgreSQL runs in Docker (docker-compose.yml); connection details live in .env.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB", "hackalem"),
-        "USER": env("POSTGRES_USER", "hackalem"),
-        "PASSWORD": env("POSTGRES_PASSWORD", "hackalem"),
-        "HOST": env("POSTGRES_HOST", "localhost"),
-        "PORT": env("POSTGRES_PORT", "5432"),
+        "NAME": env("POSTGRES_DB"),
+        "USER": env("POSTGRES_USER"),
+        "PASSWORD": env("POSTGRES_PASSWORD"),
+        "HOST": env("POSTGRES_HOST", "127.0.0.1"),
+        "PORT": env("POSTGRES_PORT"),
     }
 }
 
@@ -100,6 +101,8 @@ GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
 
 # AWS — read here so future boto3 code has one place to pull from.
 AWS_CONSOLE_URL = env("AWS_CONSOLE_URL")
+AWS_CONSOLE_USERNAME = env("AWS_CONSOLE_USERNAME")
+AWS_CONSOLE_PASSWORD = env("AWS_CONSOLE_PASSWORD")
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = env("AWS_REGION", "us-east-1")

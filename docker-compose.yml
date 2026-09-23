@@ -1,0 +1,29 @@
+# PostgreSQL for local development. Every value comes from the repo-root .env,
+# so everyone on the team gets the same database, credentials and port.
+#   start:  docker compose up -d db        stop:  docker compose stop db
+name: hackalem
+
+services:
+  db:
+    image: postgres:${POSTGRES_VERSION:-16}
+    container_name: hackalem-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs once, on first start with an empty volume: loads the team snapshot.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+    name: hackalem-pgdata

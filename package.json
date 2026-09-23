@@ -1,0 +1,17 @@
+{
+  "name": "hackalem",
+  "private": true,
+  "version": "0.1.0",
+  "description": "QBERS — Django + PostgreSQL + React",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "start": "node scripts/start.js",
+    "dev": "node scripts/start.js",
+    "db:snapshot": "node scripts/db.js snapshot",
+    "db:reset": "node scripts/db.js reset",
+    "db:shell": "node scripts/db.js shell"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  HackAlem / QBERS — one-command setup
-#  Installs Homebrew (macOS) or uses winget (Windows / Git Bash) or apt (Linux),
-#  then Python, Node.js, PostgreSQL, the Django + React dependencies, creates
-#  the database, and launches the app at http://localhost:5173.
+#  HackAlem / QBERS — one-command setup (macOS · Linux · Git Bash on Windows)
+#  Installs Homebrew / winget / apt, then Python, Node.js and Docker, starts
+#  PostgreSQL in Docker with the team's database, installs the Django + React
+#  dependencies, and launches the app at http://localhost:5173.
 #
 #  Usage:  ./setup.sh          (safe to re-run any time)
+#  All settings (DB name, user, password, port, API keys) come from .env.
 # ============================================================================
 set -euo pipefail
 
@@ -18,6 +19,7 @@ ok()   { printf "  ${G}✔${N} %s\n" "$*"; }
 warn() { printf "  ${Y}⚠${N} %s\n" "$*"; }
 die()  { printf "\n  ${R}✖ %s${N}\n\n" "$*"; exit 1; }
 has()  { command -v "$1" >/dev/null 2>&1; }
+ask()  { [[ -t 0 ]] && read -r -p "  ↳ $1 " REPLY || REPLY=""; }
 
 printf "${C}"
 cat <<'BANNER'
@@ -32,6 +34,9 @@ cat <<'BANNER'
 BANNER
 printf "${N}"
 
+[[ -f .env ]] || die ".env is missing. It's committed to the repo — run 'git pull' (or re-clone) and try again."
+set -a; source .env; set +a   # POSTGRES_* etc. — the single source of truth
+
 # ---------------------------------------------------------------------------
 # 1. Detect platform
 # ---------------------------------------------------------------------------
@@ -43,12 +48,11 @@ case "$(uname -s)" in
 esac
 step "Detected platform: $OS"
 
-PG_MAJOR=16
-DB_NAME=hackalem; DB_USER=hackalem; DB_PASS=hackalem
+# ---------------------------------------------------------------------------
+# 2. Package manager + Python, Node.js, Docker
+# ---------------------------------------------------------------------------
+DOCKER=(docker)
 
-# ---------------------------------------------------------------------------
-# 2. Package manager + system software
-# ---------------------------------------------------------------------------
 if [[ $OS == mac ]]; then
   step "Homebrew"
   if ! has brew; then
@@ -61,39 +65,40 @@ if [[ $OS == mac ]]; then
   fi
   ok "brew $(brew --version | head -1 | awk '{print $2}')"
 
-  step "Python, Node.js, PostgreSQL"
+  step "Python, Node.js, Docker Desktop"
   has python3 || brew install python
   has node    || brew install node
-  brew list --versions "postgresql@$PG_MAJOR" >/dev/null 2>&1 || brew install "postgresql@$PG_MAJOR"
-  export PATH="$(brew --prefix "postgresql@$PG_MAJOR")/bin:$PATH"
-  brew services start "postgresql@$PG_MAJOR" >/dev/null 2>&1 || true
-  PSQL_SUPER=(psql -d postgres)
+  if ! has docker; then
+    warn "Docker not found — installing Docker Desktop"
+    brew install --cask docker
+  fi
+  start_docker() { open -a Docker; }
 
 elif [[ $OS == linux ]]; then
   step "apt packages"
-  has apt-get || die "Only apt-based Linux is automated. Install python3, nodejs, npm and postgresql manually, then re-run."
+  has apt-get || die "Only apt-based Linux is automated. Install python3, nodejs and docker manually, then re-run."
   sudo apt-get update -y
-  sudo apt-get install -y python3 python3-venv python3-pip postgresql postgresql-contrib curl
+  sudo apt-get install -y python3 python3-venv python3-pip curl
   if ! has node || [[ $(node -v | tr -d v | cut -d. -f1) -lt 20 ]]; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
   fi
-  sudo service postgresql start || sudo systemctl start postgresql || true
-  PSQL_SUPER=(sudo -u postgres psql -d postgres)
+  if ! has docker; then
+    warn "Docker not found — installing Docker Engine"
+    curl -fsSL https://get.docker.com | sudo sh
+    sudo usermod -aG docker "$USER" || true
+  fi
+  start_docker() { sudo systemctl start docker || sudo service docker start; }
 
 else # windows (Git Bash)
   step "winget"
-  has winget || die "winget not found. Install 'App Installer' from the Microsoft Store, then re-run this script in Git Bash."
+  has winget || die "winget not found. Install 'App Installer' from the Microsoft Store, then re-run."
   WG=(winget install --silent --accept-package-agreements --accept-source-agreements -e --id)
   has python || has py || "${WG[@]}" Python.Python.3.12
   has node   || "${WG[@]}" OpenJS.NodeJS.LTS
-  PG_BIN="/c/Program Files/PostgreSQL/$PG_MAJOR/bin"
-  if [[ ! -x "$PG_BIN/psql.exe" ]]; then
-    "${WG[@]}" "PostgreSQL.PostgreSQL.$PG_MAJOR" --override "--mode unattended --superpassword postgres --serverport 5432"
-  fi
-  export PATH="$PG_BIN:/c/Program Files/nodejs:$PATH"
-  export PGPASSWORD=postgres
-  PSQL_SUPER=(psql -U postgres -h localhost -d postgres)
+  has docker || [[ -x "/c/Program Files/Docker/Docker/resources/bin/docker.exe" ]] || "${WG[@]}" Docker.DockerDesktop
+  export PATH="/c/Program Files/Docker/Docker/resources/bin:/c/Program Files/nodejs:$PATH"
+  start_docker() { "/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 & }
   warn "If a tool is still 'not found', close and reopen Git Bash so PATH refreshes, then re-run."
 fi
 
@@ -107,57 +112,38 @@ has node || die "Node.js not found after install."
 ok "node $(node -v) · npm $(npm -v)"
 
 # ---------------------------------------------------------------------------
-# 3. PostgreSQL database + role
+# 3. Docker engine + login
 # ---------------------------------------------------------------------------
-step "PostgreSQL database"
-for _ in {1..30}; do pg_isready -h localhost -q && break; sleep 1; done
-pg_isready -h localhost -q || die "PostgreSQL is not accepting connections on localhost:5432."
-ok "$(psql --version)"
-
-if [[ -z $("${PSQL_SUPER[@]}" -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'") ]]; then
-  "${PSQL_SUPER[@]}" -qc "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS' CREATEDB;"
-  ok "created role $DB_USER"
-fi
-if [[ -z $("${PSQL_SUPER[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'") ]]; then
-  "${PSQL_SUPER[@]}" -qc "CREATE DATABASE $DB_NAME OWNER $DB_USER;"
-  ok "created database $DB_NAME"
-fi
-ok "database '$DB_NAME' ready"
-
-# ---------------------------------------------------------------------------
-# 4. .env
-# ---------------------------------------------------------------------------
-step "Environment (.env)"
-set_env() { # set_env KEY VALUE — replace the KEY= line in .env
-  $PY - "$1" "$2" <<'PY'
-import re, sys, pathlib
-key, val = sys.argv[1], sys.argv[2]
-p = pathlib.Path(".env"); s = p.read_text()
-s = re.sub(rf"^{key}=.*$", lambda _: f"{key}={val}", s, count=1, flags=re.M)
-p.write_text(s)
-PY
+step "Docker"
+has docker || die "Docker not found after install. Open a new terminal and re-run ./setup.sh."
+docker_up() {
+  if docker info >/dev/null 2>&1; then DOCKER=(docker); return 0; fi
+  # Linux right after install: the docker group only applies after re-login.
+  if [[ $OS == linux ]] && sudo docker info >/dev/null 2>&1; then DOCKER=(sudo docker); return 0; fi
+  return 1
 }
-get_env() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
+if ! docker_up; then
+  warn "Starting Docker… on first launch, accept the Docker Desktop terms if a window opens."
+  start_docker
+  for _ in {1..90}; do docker_up && break; sleep 2; done
+fi
+docker_up || die "Docker didn't start. Open Docker Desktop, wait for 'Engine running', then re-run ./setup.sh."
+ok "$("${DOCKER[@]}" --version)"
 
-if [[ ! -f .env ]]; then
-  cp .env.example .env
-  ok "created .env from .env.example"
+ask "Log in to Docker Hub? Optional; avoids anonymous download limits. [y/N]"
+if [[ $REPLY =~ ^[Yy] ]]; then
+  # docker login asks for your username + password/token itself; nothing is stored by this script.
+  "${DOCKER[@]}" login || warn "Docker login failed — continuing without it."
 fi
-if [[ -z $(get_env DJANGO_SECRET_KEY) ]]; then
-  set_env DJANGO_SECRET_KEY "$($PY -c 'import secrets; print(secrets.token_urlsafe(50))')"
-  ok "generated DJANGO_SECRET_KEY"
-fi
-for key in GOOGLE_API_KEY GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET; do
-  if [[ -z $(get_env $key) ]]; then
-    if [[ -t 0 ]]; then
-      read -r -p "  ↳ Paste $key (Enter to skip): " val
-      [[ -n $val ]] && set_env "$key" "$val"
-    else
-      warn "$key is empty — add it to .env for Google features"
-    fi
-  fi
-done
-ok ".env ready"
+
+# ---------------------------------------------------------------------------
+# 4. PostgreSQL in Docker
+# ---------------------------------------------------------------------------
+step "PostgreSQL $POSTGRES_VERSION (Docker) → 127.0.0.1:$POSTGRES_PORT"
+"${DOCKER[@]}" compose up -d --wait db || die "Database container failed — run 'docker compose logs db' to see why."
+"${DOCKER[@]}" compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT 1" >/dev/null \
+  || die "Could not connect to database '$POSTGRES_DB' as '$POSTGRES_USER'."
+ok "database '$POSTGRES_DB' ready (user '$POSTGRES_USER')"
 
 # ---------------------------------------------------------------------------
 # 5. Python / Django
@@ -168,7 +154,7 @@ if [[ -f .venv/bin/activate ]]; then source .venv/bin/activate; else source .ven
 python -m pip install --quiet --upgrade pip
 python -m pip install --quiet -r backend/requirements.txt
 python backend/manage.py migrate --noinput
-ok "Django $(python -c 'import django; print(django.get_version())') migrated"
+ok "Django $(python -c 'import django; print(django.get_version())') connected + migrated"
 
 # ---------------------------------------------------------------------------
 # 6. React frontend
@@ -180,5 +166,5 @@ ok "npm packages installed"
 # ---------------------------------------------------------------------------
 # 7. Launch
 # ---------------------------------------------------------------------------
-printf "\n${G}✔ Setup complete.${N} Launching the app…\n"
-exec "$ROOT/run.sh"
+printf "\n${G}✔ Setup complete.${N} Next time, just run: ${C}npm start${N}\n"
+exec node "$ROOT/scripts/start.js"

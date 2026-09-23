@@ -1,7 +1,5 @@
-# Secrets — never commit. Share .env with teammates privately.
-.env
-.env.*
-!.env.example
+# .env IS committed (private repo). Personal overrides go in .env.local.
+.env.local
 
 # Python
 .venv/
@@ -18,3 +16,7 @@ logs/
 *.log
 .DS_Store
 Thumbs.db
+
+# Root package.json has no dependencies — lockfiles there are noise
+/package-lock.json
+/pnpm-lock.yaml
