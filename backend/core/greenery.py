@@ -4,7 +4,7 @@ from django import forms
 from .models import District, GreenArea, GreenCell, PopulationCell, Tree
 from .transport import _number
 
-TREE_FOOTPRINT_M2 = 4  # each new tree counts as 4 m² of green space
+TREE_FOOTPRINT_M2 = 4  # each new tree counts as 4 m² of green space!
 
 # Starting estimates in tenge — editable on the page.
 DEFAULT_TREE_COSTS = {
@@ -78,6 +78,7 @@ class GreeneryScenarioForm(forms.Form):
 
     def clean_include_forest(self):
         return bool(self.cleaned_data.get("include_forest"))
+
 
 
 def reference_payload():
