@@ -38,7 +38,21 @@ A civil-planning budget tool for the city of Astana, in **white · lemonchiffon 
 | **Currency switch** | Converts the whole budget at today's rate (e.g. ₸1,000,000,000 → $2,235,086.10) and shows the tenge equivalent. |
 | **Five tabs** | 🚌 Transport · 🌳 Greenery · 🤝 Social services · 🛡️ Safety · 🏙️ City services — each with its own colour, the area's budget on the left and a **2GIS map of Astana** on the right. |
 | **Autosave** | Every change is validated by a Django form and saved to PostgreSQL (header shows *Saved 14:17*). Reload the page and it's all still there. |
-| **Preloaders** | Pastel bars with a live **%** — full-page on first load, inside each map while it loads, and while exchange rates or saves are in flight. |
+| **Preloaders** | Pastel bars with a live **%** — full-page on first load, inside each map while it loads, and while exchange rates, saves or coverage calculations are in flight. |
+
+### 🚌 The Transport tab
+
+| Feature | Details |
+|:--|:--|
+| **Map layers** | Every bus stop (🚏 sign — dots when zoomed out), railway 🚆 and LRT stations, Zenodo bus routes 10 · 12 · 46, and Astana's **six districts** coloured in. Toggles for each. |
+| **District zoom** | Dropdown + ◀ ▶ buttons glide out and into a district, then show its **population** (qazatlas.kz), share, yearly change, area, density, stops, coverage and the dataset's T1/T2 scores. |
+| **Current infrastructure** | Boxes + auto-filled inputs with today's counts: **1,002 bus stops**, **23 train stations** (5 railway + 18 LRT). Editable if you know better numbers. |
+| **Add stops** | **Drag a bus-stop or train-station sign onto the map** to place a new one. Listed in the sidebar; click to fly there, ✕ to remove. |
+| **Add buses / trains** | Per-route steppers using real GPS timings (buses per day, peak interval, trip time). Shows the new interval and whether it meets the dataset's **≤10 min** goal. |
+| **Costs** | Pre-filled purchase/setup **and** maintenance costs for bus stops, stations, buses and trains. Maintenance in **currency or units**, **/month or /year**. Totals are checked against the transport budget. |
+| **Walking distance** | Set the max distance to a bus stop (default **500 m**, from the dataset's T2) and to a station (1,000 m) plus goals. Shows the **% of residents in reach — before → after** your new stops, city-wide and per district, and stops per 10,000 residents. |
+
+<sub>Sources (also shown on the page): bus routes & timings — [Mansurova et al. 2025, Zenodo](https://doi.org/10.5281/zenodo.15769359) (CC BY 4.0); stops, stations, districts, buildings — © OpenStreetMap contributors (ODbL); population — [qazatlas.kz](https://qazatlas.kz/ru/city/astana) (1 July 2026); T1/T2 indicators — District_Dataset_EN.docx.</sub>
 
 ---
 
@@ -148,6 +162,7 @@ Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to stop the web servers. The database conta
 | **Start the app** | `npm start` | `pnpm start` | `./run.sh` | `npm start` |
 | **Stop the app** | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> | <kbd>Ctrl</kbd>+<kbd>C</kbd> |
 | **Start only the database** | `npm run db:up` | `pnpm run db:up` | ← same | ← same |
+| **Rebuild transport data** (maintainers) | `npm run data:transport` | `pnpm run data:transport` | ← same | ← same |
 | **Share my data with the team** | `npm run db:snapshot` | `pnpm run db:snapshot` | ← same | ← same |
 | **Reload the team's data** (wipes mine) | `npm run db:reset` | `pnpm run db:reset` | ← same | ← same |
 | **Open a SQL prompt** | `npm run db:shell` | `pnpm run db:shell` | ← same | ← same |
@@ -217,8 +232,8 @@ flowchart LR
 | Layer | Tech | Job |
 |:--|:--|:--|
 | <samp>UI</samp> | **React 19 + Vite** | Budget controls, area tabs, 2GIS maps, preloaders |
-| <samp>API</samp> | **Django** | `/api/plan/` (validated by `BudgetPlanForm`), `/api/currency/`, `/api/health/`, `/admin` |
-| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | The budget plan, cached exchange rates, users |
+| <samp>API</samp> | **Django** | `/api/plan/`, `/api/transport/`, `/api/transport/scenario/` (validated by Django forms), `/api/currency/`, `/api/health/`, `/admin` |
+| <samp>DATA</samp> | **PostgreSQL 18 in Docker** | Budget plan, transport scenario, districts, stops, stations, routes, population grid, cached rates |
 | <samp>MAPS</samp> | **2GIS MapGL** | Map of Astana on every tab |
 | <samp>RATES</samp> | **currencyapi.com** | Live exchange rates (base KZT), proxied + cached by Django |
 | <samp>CLOUD</samp> | **Google** | Sign-In with Google and Analytics (ready, not on this page yet) |
@@ -248,6 +263,7 @@ Connect with any SQL tool (TablePlus, DBeaver, pgAdmin, DataGrip) using those va
 2. Changed data you want everyone to have? Run **`npm run db:snapshot`**, commit `db/init/01-snapshot.sql`, and push.
 3. Teammates pull, then run **`npm run db:reset`** to replace their local data with the new snapshot.
 4. Schema changes still go through Django: `python backend/manage.py makemigrations` → commit → teammates' `npm start` runs `migrate` automatically.
+5. The **transport data** (districts, stops, stations, routes, population grid) is already in the snapshot — nobody needs to download anything. To rebuild it from the sources (e.g. newer OpenStreetMap data), run `npm run data:transport`, then `npm run db:snapshot` and commit.
 
 ### 🔌 When a port is already taken
 
@@ -283,7 +299,8 @@ hackalem/
 ├── .env                   ⟶  ALL config: API keys, DB login, ports (committed — private repo)
 ├── .env.local             ⟶  your personal overrides, e.g. a moved port (gitignored, auto-created)
 ├── docker-compose.yml     ⟶  PostgreSQL container, reads .env
-├── db/init/               ⟶  01-snapshot.sql — team data loaded on first start
+├── db/init/               ⟶  01-snapshot.sql — team data loaded on first start (incl. transport data)
+├── data/raw/              ⟶  download cache for the transport import (gitignored)
 ├── package.json           ⟶  npm start · npm run setup · npm run db:*  (pnpm works too)
 ├── setup.sh               ⟶  one-time installer — macOS / Linux / Git Bash
 ├── setup.cmd · setup.ps1  ⟶  one-time installer — Windows Command Prompt
@@ -297,14 +314,18 @@ hackalem/
 │   └── windows/           ·  docker-doctor.ps1 — virtualization checks + fixes
 ├── backend/               ⟶  Django project
 │   ├── config/            ·  settings.py reads everything from .env
-│   └── core/              ·  BudgetPlan + ExchangeRates models, BudgetPlanForm, API views
+│   └── core/              ·  models, forms, API views
+│       ├── transport.py   ·  transport scenario form, default costs, API payload
+│       └── transport_data.py · builds districts/stops/routes/population from open data
 └── frontend/              ⟶  React (Vite)
     ├── index.html         ·  loads the Font Awesome kit from .env
     └── src/
         ├── App.jsx        ·  budget state, currency conversion, autosave, page preloader
         ├── lib/           ·  env.js (reads .env) · areas.js (the five areas) · money.js
         ├── hooks/         ·  useProgress — the % behind every preloader
+        ├── lib/geo.js     ·  distances, point-in-district, walking-coverage maths
         └── components/    ·  BudgetControls · AreaTabs · DgisMap · ProgressBar · NumberField
+            └── transport/ ·  TransportTab · TransportMap · Coverage · Costs · Fleet · RegionCard
 ```
 
 ---

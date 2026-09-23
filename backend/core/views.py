@@ -16,7 +16,8 @@ from google.oauth2 import id_token
 
 from .budget import DEFAULT_MONEY_TOTAL, DEFAULT_UNITS_TOTAL, default_section
 from .forms import BudgetPlanForm
-from .models import BudgetPlan, ExchangeRates
+from .models import BudgetPlan, ExchangeRates, TransportScenario
+from .transport import TransportScenarioForm, default_scenario, reference_payload
 
 
 def _json_body(request):
@@ -149,6 +150,32 @@ def currency(request):
         base="KZT", rates=rates, source_updated_at=parse_datetime(body.get("meta", {}).get("last_updated_at", "") or "")
     )
     return JsonResponse(_rates_payload(snapshot, cached=False))
+
+
+# ---------------------------------------------------------------------------
+# Transport tab
+# ---------------------------------------------------------------------------
+@require_GET
+def transport_data(request):
+    payload = reference_payload()
+    if not payload["districts"]:
+        return JsonResponse({"error": "No transport data yet — run: python backend/manage.py import_transport"}, status=503)
+    return JsonResponse(payload)
+
+
+@require_http_methods(["GET", "PUT"])
+def transport_scenario(request):
+    scenario = TransportScenario.objects.order_by("-updated_at").first()
+    if scenario is None:
+        scenario = TransportScenario.objects.create(data=default_scenario())
+    if request.method == "PUT":
+        form = TransportScenarioForm(_json_body(request))
+        if not form.is_valid():
+            errors = [e for field in form.errors.values() for e in field]
+            return JsonResponse({"error": " ".join(errors), "errors": form.errors}, status=400)
+        scenario.data = form.cleaned_data
+        scenario.save()
+    return JsonResponse({**scenario.data, "updated_at": scenario.updated_at.isoformat()})
 
 
 @require_POST

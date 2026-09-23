@@ -69,3 +69,31 @@ export function sectionToApi(section, decimals) {
     allocations: Object.fromEntries(AREA_IDS.map((id) => [id, section.allocations[id].toFixed(decimals)])),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Tenge ⇄ plan measure. One unit is worth (money budget ÷ units budget), so the
+// two budget modes stay comparable: ₸1,000,000,000 ÷ 10,000 units = ₸100,000/unit.
+// ---------------------------------------------------------------------------
+export function rateOf(currency, rates) {
+  if (currency === "KZT") return 1;
+  return rates?.[currency] || 1;
+}
+
+export function kztPerUnit(plan, rates) {
+  const moneyKzt = plan.money.total / rateOf(plan.currency, rates);
+  return plan.units.total > 0 ? moneyKzt / plan.units.total : 0;
+}
+
+// tenge → the chosen measure ("money" = plan currency, "units")
+export function fromKzt(kzt, measure, plan, rates) {
+  if (measure === "units") {
+    const per = kztPerUnit(plan, rates);
+    return per > 0 ? kzt / per : 0;
+  }
+  return kzt * rateOf(plan.currency, rates);
+}
+
+export function toKzt(value, measure, plan, rates) {
+  if (measure === "units") return value * kztPerUnit(plan, rates);
+  return value / rateOf(plan.currency, rates);
+}

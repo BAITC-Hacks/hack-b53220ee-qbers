@@ -20,3 +20,6 @@ Thumbs.db
 # Root package.json has no dependencies — lockfiles there are noise
 /package-lock.json
 /pnpm-lock.yaml
+
+# Download cache for `manage.py import_transport` (the processed data lives in Postgres + db/init snapshot)
+data/raw/

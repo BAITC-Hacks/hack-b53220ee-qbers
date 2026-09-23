@@ -3,6 +3,7 @@ import { AREAS } from "../lib/areas";
 import { DECIMALS, formatAmount } from "../lib/money";
 import DgisMap from "./DgisMap";
 import NumberField from "./NumberField";
+import TransportTab from "./transport/TransportTab";
 
 export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
   const { mode, currency } = plan;
@@ -50,12 +51,16 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
       </div>
 
       <div
-        className="tab-panel"
+        className={`tab-panel ${area.id === "transport" ? "is-transport" : ""}`}
         role="tabpanel"
         id={`panel-${area.id}`}
         aria-labelledby={`tab-${area.id}`}
         style={{ "--tint": area.tint, "--ink": area.ink }}
       >
+        {area.id === "transport" ? (
+          <TransportTab plan={plan} rates={rates.data?.rates} />
+        ) : (
+        <>
         <aside className="area-budget">
           <div className="area-icon"><i className={area.icon} /></div>
           <h3>{area.label}</h3>
@@ -85,6 +90,8 @@ export default function AreaTabs({ plan, rates, active, onSelect, dispatch }) {
 
         {/* key: a new map (and preloader) every time this tab is opened */}
         <DgisMap key={area.id} label={area.label} />
+        </>
+        )}
       </div>
     </section>
   );
